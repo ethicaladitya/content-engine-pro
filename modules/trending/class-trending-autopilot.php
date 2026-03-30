@@ -74,9 +74,10 @@ class TrendingAutopilot {
 		$sources_raw = Settings::get( 'trending_sources', 'google_trends,google_news' );
 		$sources     = array_filter( array_map( 'trim', explode( ',', $sources_raw ) ) );
 
-		// Build niche keywords for Google News queries
-		$niche_manager = \ContentEnginePro\NicheManager::get( Settings::get( 'niche_vertical', 'wordpress' ) );
-		$niche_keywords = array_filter( array_map( 'trim', explode( ',', Settings::get( 'niche_keywords', '' ) ?: ( $niche_manager['keywords'] ?? '' ) ) ) );
+		// Build niche keywords for Google News queries.
+		// get_active() already merges the admin niche_keywords override with preset defaults.
+		$niche          = \ContentEnginePro\NicheManager::get_active();
+		$niche_keywords = array_filter( array_map( 'trim', explode( ',', $niche['keywords'] ) ) );
 		$niche_keywords = array_slice( $niche_keywords, 0, 5 ); // Top 5 keywords only
 
 		// Build Reddit subreddits list

@@ -6,6 +6,7 @@ use ContentEnginePro\Logger;
 use ContentEnginePro\AiClient;
 use ContentEnginePro\NicheManager;
 use ContentEnginePro\Research\WebResearcher;
+use ContentEnginePro\ImageHelper;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -123,7 +124,14 @@ class ReviewAutopilot {
 			return $post_id;
 		}
 
-		// 4. Save to reviews DB table
+		// 4. Featured image — try OG from product page, then Pexels, then Picsum.
+		ImageHelper::assign_featured_image(
+			$post_id,
+			$product['product_url'],
+			$product['product_name']
+		);
+
+		// 5. Save to reviews DB table
 		self::save_review_record( $post_id, $product, $review_data );
 
 		Logger::log( "Review autopilot: published review #{$post_id} for {$product['product_name']}", 'info', 'review_autopilot' );
@@ -190,20 +198,27 @@ Requirements:
 - Do NOT fabricate version numbers or pricing you're not sure about
 - End with a clear verdict
 
-Return a JSON object with this exact structure:
+SCORING INSTRUCTIONS — read carefully before writing:
+Assign star_rating as a decimal from 1.0 to 5.0 based solely on the research data below.
+Scoring guide: features & depth (up to 2pts) + user sentiment/ratings (up to 1pt) + value for money (up to 1pt) + support & docs (up to 1pt).
+Most solid products score 3.2–4.4. Reserve 4.5+ for genuinely outstanding products. Do not default to any fixed number.
+
+Return ONLY a valid JSON object:
 {
-  "title": "SEO-optimized review headline (include the product name and 'Review')",
-  "content": "full HTML review (600-1200 words)",
+  "title": "SEO-optimised review headline including the product name and the word Review",
+  "content": "full HTML review body (600-1200 words)",
   "excerpt": "2-sentence meta description summary",
-  "star_rating": 4.2,
-  "pros": ["pro 1", "pro 2", "pro 3", "pro 4"],
-  "cons": ["con 1", "con 2", "con 3"],
+  "star_rating": 0.0,
+  "pros": ["specific strength observed in research", "another real pro"],
+  "cons": ["specific limitation observed in research", "another real con"],
   "verdict": "2-3 sentence final verdict",
-  "price_from": "Free / $X/month / Free – $XX/month",
-  "version": "x.x.x or empty string if unknown",
+  "price_from": "Free or actual starting price e.g. $9/month",
+  "version": "actual version number or empty string if unknown",
   "category": "most fitting review category for this product type",
-  "tags": ["tag1", "tag2", "tag3"]
+  "tags": ["relevant", "tag", "here"]
 }
+
+Replace star_rating 0.0 with your calculated score. A value of 0.0 in the output is invalid.
 
 Research Data:
 {$research_text}
@@ -264,19 +279,25 @@ PROMPT
 			}
 		}
 
-		// Save review meta
-		$rating = (float) ( $review_data['star_rating'] ?? 0 );
-		update_post_meta( $post_id, '_cep_review_rating', $rating );
-		update_post_meta( $post_id, '_cep_review_pros', wp_json_encode( $review_data['pros'] ?? [] ) );
-		update_post_meta( $post_id, '_cep_review_cons', wp_json_encode( $review_data['cons'] ?? [] ) );
-		update_post_meta( $post_id, '_cep_review_verdict', sanitize_textarea_field( $review_data['verdict'] ?? '' ) );
-		update_post_meta( $post_id, '_cep_review_price', sanitize_text_field( $review_data['price_from'] ?? '' ) );
-		update_post_meta( $post_id, '_cep_review_version', sanitize_text_field( $review_data['version'] ?? '' ) );
-		update_post_meta( $post_id, '_cep_product_url', esc_url_raw( $product['product_url'] ) );
-		update_post_meta( $post_id, '_cep_product_type', sanitize_key( $product['product_type'] ?? '' ) );
-		update_post_meta( $post_id, '_cep_ai_generated', '1' );
-		update_post_meta( $post_id, '_cep_ai_model', sanitize_text_field( Settings::get( 'ai_model' ) ) );
-		update_post_meta( $post_id, '_cep_active_installs', (int) ( $product['active_installs'] ?? 0 ) );
+		// Save review meta — keys must match what ReviewShortcode and the admin UI read.
+		// Clamp to 1.0–5.0; treat 0 as absent (AI returned sentinel without replacing it).
+		$raw_rating = (float) ( $review_data['star_rating'] ?? 0 );
+		$rating     = ( $raw_rating < 0.5 ) ? 0.0 : min( 5.0, max( 1.0, $raw_rating ) );
+		$pros   = array_filter( array_map( 'sanitize_text_field', (array) ( $review_data['pros'] ?? [] ) ) );
+		$cons   = array_filter( array_map( 'sanitize_text_field', (array) ( $review_data['cons'] ?? [] ) ) );
+
+		update_post_meta( $post_id, '_cep_review_star_rating',  $rating );
+		update_post_meta( $post_id, '_cep_review_pros',         implode( "\n", $pros ) );
+		update_post_meta( $post_id, '_cep_review_cons',         implode( "\n", $cons ) );
+		update_post_meta( $post_id, '_cep_review_verdict',      sanitize_textarea_field( $review_data['verdict'] ?? '' ) );
+		update_post_meta( $post_id, '_cep_review_price_from',   sanitize_text_field( $review_data['price_from'] ?? '' ) );
+		update_post_meta( $post_id, '_cep_review_version',      sanitize_text_field( $review_data['version'] ?? '' ) );
+		update_post_meta( $post_id, '_cep_review_product_name', sanitize_text_field( $product['product_name'] ) );
+		update_post_meta( $post_id, '_cep_review_product_url',  esc_url_raw( $product['product_url'] ) );
+		update_post_meta( $post_id, '_cep_review_product_type', sanitize_key( $product['product_type'] ?? '' ) );
+		update_post_meta( $post_id, '_cep_ai_generated',        '1' );
+		update_post_meta( $post_id, '_cep_ai_model',            sanitize_text_field( Settings::get( 'ai_model' ) ) );
+		update_post_meta( $post_id, '_cep_active_installs',     (int) ( $product['active_installs'] ?? 0 ) );
 		if ( ! empty( $product['wporg_slug'] ) ) {
 			update_post_meta( $post_id, '_cep_wporg_slug', sanitize_title( $product['wporg_slug'] ) );
 		}

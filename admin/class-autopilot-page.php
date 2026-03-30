@@ -426,12 +426,85 @@ class AutopilotPage {
 		.cep-active--seo{border-top-color:#10b981!important}
 		.cep-pipeline-icon--seo{color:#10b981!important}
 		.cep-card-hint{margin:8px 0 0;font-size:12px;color:#666}
+		.cep-btn-loading{opacity:.7;cursor:not-allowed;pointer-events:none}
+		.cep-btn-spinner{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:cep-spin .7s linear infinite;margin-right:5px;vertical-align:middle}
+		@keyframes cep-spin{to{transform:rotate(360deg)}}
+		.cep-trigger-notice{padding:10px 14px;border-left:4px solid #0073aa;background:#f0f6fc;margin-top:10px;border-radius:0 4px 4px 0;font-size:13px;display:none}
+		.cep-trigger-notice.cep-notice-success{border-left-color:#1a7a3c;background:#edfaf1}
+		.cep-trigger-notice.cep-notice-error{border-left-color:#c0392b;background:#fdf0ef}
 		</style>
+		<script>
+		( function () {
+			'use strict';
+
+			// Intercept every trigger form on this page and run it via AJAX so only
+			// the clicked button shows a loading state — no full-page reload.
+			document.querySelectorAll( '.cep-autopilot-card__footer form, .cep-pipeline-banner form' ).forEach( function ( form ) {
+				form.addEventListener( 'submit', function ( e ) {
+					e.preventDefault();
+
+					var btn     = form.querySelector( 'button[type="submit"]' );
+					var trigger = ( form.querySelector( 'input[name="cep_trigger"]' ) || {} ).value;
+
+					if ( ! btn || ! trigger ) {
+						return;
+					}
+
+					// Find or create the result notice element for this card/banner.
+					var card   = form.closest( '.cep-autopilot-card, .cep-pipeline-banner' );
+					var notice = card ? card.querySelector( '.cep-trigger-notice' ) : null;
+					if ( ! notice ) {
+						notice = document.createElement( 'p' );
+						notice.className = 'cep-trigger-notice';
+						form.parentNode.insertBefore( notice, form.nextSibling );
+					}
+
+					// Loading state.
+					var originalHTML = btn.innerHTML;
+					btn.disabled    = true;
+					btn.classList.add( 'cep-btn-loading' );
+					btn.innerHTML   = '<span class="cep-btn-spinner"></span>Running&hellip;';
+					notice.style.display = 'none';
+					notice.className     = 'cep-trigger-notice';
+
+					// Build form data.
+					var body = new URLSearchParams( {
+						action : 'cep_manual_trigger',
+						nonce  : ( window.cepAdmin || {} ).nonce || '',
+						trigger: trigger,
+					} );
+
+					fetch( ( window.cepAdmin || {} ).ajaxUrl || ajaxurl, {
+						method     : 'POST',
+						credentials: 'same-origin',
+						headers    : { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body       : body.toString(),
+					} )
+					.then( function ( r ) { return r.json(); } )
+					.then( function ( data ) {
+						notice.innerHTML     = data.data && data.data.message ? data.data.message : ( data.success ? '✅ Done.' : '❌ Something went wrong.' );
+						notice.classList.add( data.success ? 'cep-notice-success' : 'cep-notice-error' );
+						notice.style.display = 'block';
+					} )
+					.catch( function () {
+						notice.innerHTML     = '❌ Request failed — please try again.';
+						notice.classList.add( 'cep-notice-error' );
+						notice.style.display = 'block';
+					} )
+					.finally( function () {
+						btn.disabled   = false;
+						btn.classList.remove( 'cep-btn-loading' );
+						btn.innerHTML  = originalHTML;
+					} );
+				} );
+			} );
+		} () );
+		</script>
 		<?php
 	}
 
 	/**
-	 * Handle manual pipeline trigger via POST.
+	 * Handle manual pipeline trigger via POST (legacy full-page fallback).
 	 */
 	private static function handle_trigger(): string {
 		if ( empty( $_POST['cep_trigger'] ) || empty( $_POST['cep_trigger_nonce'] ) ) {
@@ -446,8 +519,14 @@ class AutopilotPage {
 			return '';
 		}
 
-		$trigger = sanitize_key( $_POST['cep_trigger'] );
+		return self::run_trigger( sanitize_key( $_POST['cep_trigger'] ) );
+	}
 
+	/**
+	 * Execute a named pipeline trigger and return a human-readable result string.
+	 * Called both by handle_trigger() (POST fallback) and the AJAX handler.
+	 */
+	public static function run_trigger( string $trigger ): string {
 		switch ( $trigger ) {
 			case 'full_pipeline':
 				global $wpdb;

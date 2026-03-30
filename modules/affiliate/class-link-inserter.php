@@ -94,6 +94,37 @@ class LinkInserter {
 			}
 		}
 
+		// ── Review post fallback ────────────────────────────────────────────────
+		// If this is a review and the reviewed product name wasn't covered by an
+		// affiliate provider above, link its first mention to:
+		//   1. The affiliate redirect URL  (if the product has an affiliate slug set)
+		//   2. The direct product URL      (stored at publish time)
+		if ( $post_type === $reviews ) {
+			$post_id      = get_the_ID();
+			$product_name = (string) get_post_meta( $post_id, '_cep_review_product_name', true );
+			$product_url  = (string) get_post_meta( $post_id, '_cep_review_product_url', true );
+			$aff_slug     = (string) get_post_meta( $post_id, '_cep_review_affiliate_slug', true );
+
+			if ( $product_name && $product_url && ! in_array( $aff_slug, $used_slugs, true ) ) {
+				// Resolve URL: affiliate redirect if configured, else direct.
+				if ( $aff_slug && function_exists( 'cep_get_affiliate_redirect_url' ) ) {
+					$link_url = cep_get_affiliate_redirect_url( $aff_slug );
+					$rel      = 'noopener sponsored';
+				} else {
+					$link_url = $product_url;
+					$rel      = 'noopener noreferrer';
+				}
+
+				$link    = sprintf(
+					'<a href="%s" class="cep-product-link" target="_blank" rel="%s">%s</a>',
+					esc_url( $link_url ),
+					esc_attr( $rel ),
+					esc_html( $product_name )
+				);
+				$content = $this->replace_first_outside_tags( $content, $product_name, $link );
+			}
+		}
+
 		return $content;
 	}
 
