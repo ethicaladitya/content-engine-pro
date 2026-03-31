@@ -183,12 +183,16 @@ class Settings {
 		'trending_max_per_run'         => '5',
 		'trending_min_demand_score'    => '50',
 
-		// ── SEO Autopilot ────────────────────────────────────────────
-		'seo_autopilot_enabled'        => '1',
-		'seo_scan_days'                => '3',       // scan posts from last N days
-		'seo_autofix_enabled'          => '1',       // apply deterministic fixes automatically
-		'seo_score_threshold'          => '70',      // flag posts below this plugin SEO score
-		'seo_post_types'               => 'post',    // comma-separated list of post types to scan
+		// ── SEO Agent ─────────────────────────────────────────────────────────
+		'enable_seo_agent'             => '1',
+		'seo_agent_interval'           => '3',   // days between full scans
+		'seo_min_word_count'           => '300',
+		'seo_title_min_length'         => '30',
+		'seo_title_max_length'         => '60',
+		'seo_meta_desc_min_length'     => '100',
+		'seo_meta_desc_max_length'     => '160',
+		'seo_slug_max_length'          => '75',
+		'seo_auto_fix_enabled'         => '1',
 	];
 
 	/**

@@ -22,6 +22,12 @@ class Scheduler {
 				'display'  => 'Twice Daily',
 			];
 		}
+		if ( ! isset( $schedules['every_three_days'] ) ) {
+			$schedules['every_three_days'] = [
+				'interval' => 3 * DAY_IN_SECONDS,
+				'display'  => 'Every 3 Days',
+			];
+		}
 		return $schedules;
 	}
 
@@ -58,6 +64,11 @@ class Scheduler {
 		// Trending topics autopilot — runs twice daily, one hour before article autopilot
 		if ( Settings::is_enabled( 'trending_autopilot_enabled' ) ) {
 			$events[] = [ 'hook' => 'cep_trending_autopilot', 'recurrence' => 'twicedaily', 'start_offset' => 8 * HOUR_IN_SECONDS ];
+		}
+
+		// SEO Agent — runs every 3 days
+		if ( Settings::is_enabled( 'enable_seo_agent' ) ) {
+			$events[] = [ 'hook' => 'cep_seo_analysis', 'recurrence' => 'every_three_days', 'start_offset' => 6 * HOUR_IN_SECONDS ];
 		}
 
 		foreach ( $events as $event ) {

@@ -3,7 +3,7 @@
  * Plugin Name:       Content Engine Pro
  * Plugin URI:        https://example.com/content-engine-pro
  * Description:       Settings-driven AI-powered content publication engine. Crawls sources, scores signals, generates AI content, manages affiliates and reviews — all configurable via WordPress Admin.
- * Version:           1.0.0
+ * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      8.0
  * Author:            Content Engine Pro
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'CEP_VERSION', '1.0.0' );
+define( 'CEP_VERSION', '1.2.0' );
 define( 'CEP_DB_VERSION', '1.1.0' );
 define( 'CEP_FILE', __FILE__ );
 define( 'CEP_DIR', plugin_dir_path( __FILE__ ) );

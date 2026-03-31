@@ -38,16 +38,16 @@ class ReviewShortcode {
 			return '';
 		}
 
-		$rating       = (float) get_post_meta( $post->ID, '_cep_review_star_rating', true );
-		$pros_raw     = (string) get_post_meta( $post->ID, '_cep_review_pros', true );
-		$cons_raw     = (string) get_post_meta( $post->ID, '_cep_review_cons', true );
-		$verdict      = (string) get_post_meta( $post->ID, '_cep_review_verdict', true );
-		$price        = (string) get_post_meta( $post->ID, '_cep_review_price_from', true );
-		$aff_slug     = (string) get_post_meta( $post->ID, '_cep_review_affiliate_slug', true );
-		$product_type = (string) get_post_meta( $post->ID, '_cep_review_product_type', true );
+		$rating      = (float) get_post_meta( $post->ID, '_cep_review_star_rating', true );
+		$pros_raw    = get_post_meta( $post->ID, '_cep_review_pros', true );
+		$cons_raw    = get_post_meta( $post->ID, '_cep_review_cons', true );
+		$verdict     = get_post_meta( $post->ID, '_cep_review_verdict', true );
+		$price       = get_post_meta( $post->ID, '_cep_review_price_from', true );
+		$aff_slug    = get_post_meta( $post->ID, '_cep_review_affiliate_slug', true );
+		$product_type = get_post_meta( $post->ID, '_cep_review_product_type', true );
 
-		$pros = array_slice( self::parse_list_meta( $pros_raw ), 0, 3 );
-		$cons = array_slice( self::parse_list_meta( $cons_raw ), 0, 2 );
+		$pros = array_filter( array_slice( explode( "\n", $pros_raw ), 0, 3 ) );
+		$cons = array_filter( array_slice( explode( "\n", $cons_raw ), 0, 2 ) );
 
 		ob_start();
 		?>
@@ -120,33 +120,5 @@ class ReviewShortcode {
 		</div>
 		<?php
 		return ob_get_clean();
-	}
-
-	/**
-	 * Parse a stored pros/cons meta value into a clean string array.
-	 *
-	 * Handles two historical storage formats:
-	 *   - Newline-separated plain text  (ReviewManager / current ReviewAutopilot)
-	 *   - JSON-encoded array            (old ReviewAutopilot before the meta-key fix)
-	 *
-	 * @param  string $raw  Raw meta value from get_post_meta().
-	 * @return string[]     Filtered, trimmed list items.
-	 */
-	private static function parse_list_meta( string $raw ): array {
-		$raw = trim( $raw );
-		if ( '' === $raw ) {
-			return [];
-		}
-
-		// JSON array stored by old code path.
-		if ( str_starts_with( $raw, '[' ) ) {
-			$decoded = json_decode( $raw, true );
-			if ( is_array( $decoded ) ) {
-				return array_values( array_filter( array_map( 'trim', $decoded ) ) );
-			}
-		}
-
-		// Newline-separated plain text (current format).
-		return array_values( array_filter( array_map( 'trim', explode( "\n", $raw ) ) ) );
 	}
 }

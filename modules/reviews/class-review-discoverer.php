@@ -256,14 +256,35 @@ class ReviewDiscoverer {
 		if ( strpos( $feed_url, 'hosting' ) !== false ) {
 			return 'hosting';
 		}
+		if ( strpos( $feed_url, 'allure.com' ) !== false || strpos( $feed_url, 'byrdie.com' ) !== false || strpos( $feed_url, 'intothegloss.com' ) !== false || strpos( $feed_url, 'glamour.com' ) !== false ) {
+			return 'beauty';
+		}
+		if ( strpos( $feed_url, 'wellandgood.com' ) !== false || strpos( $feed_url, 'greatist.com' ) !== false ) {
+			return 'wellness';
+		}
+		if ( strpos( $feed_url, 'dating-apps' ) !== false || strpos( $feed_url, 'dating_apps' ) !== false ) {
+			return 'dating-app';
+		}
+		if ( strpos( $feed_url, 'refinery29.com' ) !== false || strpos( $feed_url, 'cosmopolitan.com' ) !== false ) {
+			return 'skincare';
+		}
 
 		// Text-based hints
 		$type_hints = [
-			'plugin'  => [ 'plugin', 'addon', 'extension', 'wordpress plugin' ],
-			'hosting' => [ 'hosting', 'host', 'server', 'vps', 'cloud hosting', 'cpanel' ],
-			'theme'   => [ 'theme', 'template', 'wordpress theme' ],
-			'service' => [ 'service', 'platform', 'saas', 'subscription' ],
-			'tool'    => [ 'tool', 'software', 'app', 'utility' ],
+			'plugin'     => [ 'plugin', 'addon', 'extension', 'wordpress plugin' ],
+			'hosting'    => [ 'hosting', 'host', 'server', 'vps', 'cloud hosting', 'cpanel' ],
+			'theme'      => [ 'theme', 'template', 'wordpress theme' ],
+			'service'    => [ 'service', 'platform', 'saas', 'subscription' ],
+			'tool'       => [ 'tool', 'software', 'app', 'utility' ],
+			'beauty'     => [ 'foundation', 'lipstick', 'mascara', 'blush', 'eyeshadow', 'concealer', 'primer', 'bronzer', 'highlighter', 'makeup', 'cosmetic' ],
+			'skincare'   => [ 'serum', 'moisturizer', 'sunscreen', 'cleanser', 'toner', 'retinol', 'vitamin c', 'face mask', 'eye cream', 'spf', 'skincare', 'skin care' ],
+			'fragrance'  => [ 'perfume', 'fragrance', 'cologne', 'eau de parfum', 'scent' ],
+			'haircare'   => [ 'shampoo', 'conditioner', 'hair mask', 'hair oil', 'haircare', 'hair care', 'hair serum', 'dry shampoo' ],
+			'fashion'    => [ 'dress', 'jeans', 'sneakers', 'handbag', 'jacket', 'coat', 'boots', 'accessories', 'outfit', 'clothing', 'apparel', 'shoes' ],
+			'wellness'   => [ 'supplement', 'vitamin', 'probiotic', 'collagen', 'protein powder', 'wellness', 'health', 'yoga mat', 'fitness' ],
+			'self-care'  => [ 'self-care', 'self care', 'bath', 'body lotion', 'candle', 'spa', 'face roller', 'gua sha', 'sleep', 'meditation' ],
+			'dating-app' => [ 'dating app', 'dating site', 'tinder', 'bumble', 'hinge', 'match', 'okcupid', 'online dating' ],
+			'streaming'  => [ 'streaming', 'netflix', 'hulu', 'disney+', 'spotify', 'subscription box' ],
 		];
 
 		foreach ( $type_hints as $type => $hints ) {

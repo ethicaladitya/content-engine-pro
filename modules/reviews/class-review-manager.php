@@ -149,9 +149,7 @@ class ReviewManager {
 		}
 
 		// Save review meta
-		// Clamp to 1.0–5.0; treat 0 as absent (AI returned sentinel without replacing it).
-		$raw_rating = (float) ( $data['rating'] ?? 0 );
-		$rating     = ( $raw_rating < 0.5 ) ? 0.0 : min( 5.0, max( 1.0, $raw_rating ) );
+		$rating = min( 5, max( 0, (float) ( $data['rating'] ?? 3 ) ) );
 		update_post_meta( $post_id, '_cep_review_star_rating', $rating );
 		update_post_meta( $post_id, '_cep_review_pros', implode( "\n", (array) ( $data['pros'] ?? [] ) ) );
 		update_post_meta( $post_id, '_cep_review_cons', implode( "\n", (array) ( $data['cons'] ?? [] ) ) );
@@ -241,23 +239,18 @@ class ReviewManager {
 You are an expert reviewer. Write a comprehensive, balanced review of the {$type} "{$name}".
 Product URL: {$url}
 
-SCORING INSTRUCTIONS — read before writing:
-Assign rating as a decimal from 1.0 to 5.0 based on actual quality, features, user sentiment, and value for money.
-Most solid products score 3.2–4.4. Reserve 4.5+ for genuinely outstanding products. Do not default to any fixed number.
-
-Return ONLY a valid JSON object:
+Return a JSON object:
 {
-  "title": "SEO-optimised review title including the product name",
+  "title": "SEO-optimized review title",
   "content": "full HTML review content (600-1000 words) with sections: Overview, Key Features, Pros & Cons, Verdict",
   "excerpt": "2-sentence summary",
-  "rating": 0.0,
-  "pros": ["specific strength based on research", "another real pro"],
-  "cons": ["specific limitation based on research", "another real con"],
+  "rating": 4.2,
+  "pros": ["Pro 1", "Pro 2", "Pro 3"],
+  "cons": ["Con 1", "Con 2"],
   "verdict": "2-3 sentence conclusion",
-  "price": "actual starting price or Free if applicable"
+  "price": "starting price if known"
 }
 
-Replace rating 0.0 with your calculated score. A value of 0.0 in the output is invalid.
 Be factual, balanced, and helpful. Do not fabricate specific pricing or version numbers unless widely known.
 PROMPT
 		, $review );

@@ -6,7 +6,6 @@ use ContentEnginePro\Logger;
 use ContentEnginePro\AiClient;
 use ContentEnginePro\NicheManager;
 use ContentEnginePro\Research\WebResearcher;
-use ContentEnginePro\ImageHelper;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -285,11 +284,7 @@ class ArticleAutopilot {
 		}
 
 		// 9. Featured image
-		ImageHelper::assign_featured_image(
-			$post_id,
-			$item['canonical_url'],
-			$article['focus_keyword'] ?? $article['title']
-		);
+		self::assign_featured_image( $post_id, $item['canonical_url'], $article );
 
 		// 10. Inject internal links into stored content
 		self::inject_internal_links( $post_id );
@@ -699,6 +694,139 @@ Rules:
 Partner brands available for this category ({$category}):
 {$partner_list}
 AFFILIATE;
+	}
+
+	/**
+	 * Assign a featured image to the post.
+	 * Order: OG image from source → Pexels search.
+	 */
+	private static function assign_featured_image( int $post_id, string $source_url, array $article ): void {
+		$mode = Settings::get( 'featured_image_source', 'source_first' );
+
+		if ( $mode === 'disabled' ) {
+			return;
+		}
+
+		$image_url  = null;
+		$pexels_data = null;
+
+		if ( $mode === 'pexels_only' ) {
+			$pexels_data = self::fetch_pexels_image( $article['focus_keyword'] ?? $article['title'] );
+			$image_url   = $pexels_data['src'] ?? null;
+		} elseif ( $mode === 'source_only' ) {
+			$image_url = self::extract_source_og_image( $source_url );
+		} elseif ( $mode === 'pexels_first' ) {
+			$pexels_data = self::fetch_pexels_image( $article['focus_keyword'] ?? $article['title'] );
+			$image_url   = $pexels_data['src'] ?? self::extract_source_og_image( $source_url );
+		} else {
+			// source_first (default)
+			$image_url = self::extract_source_og_image( $source_url );
+			if ( ! $image_url ) {
+				$pexels_data = self::fetch_pexels_image( $article['focus_keyword'] ?? $article['title'] );
+				$image_url   = $pexels_data['src'] ?? null;
+			}
+		}
+
+		if ( ! $image_url ) {
+			return;
+		}
+
+		// Sideload the image into the WordPress media library
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+
+		$alt_text   = sanitize_text_field( $article['focus_keyword'] ?? $article['title'] );
+		$attachment_id = media_sideload_image( $image_url, $post_id, $alt_text, 'id' );
+
+		if ( is_wp_error( $attachment_id ) ) {
+			Logger::log( "Featured image sideload failed for #{$post_id}: " . $attachment_id->get_error_message(), 'warning', 'article_autopilot' );
+			return;
+		}
+
+		// Set alt text
+		update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
+
+		// Set as featured image
+		set_post_thumbnail( $post_id, $attachment_id );
+
+		// Store Pexels credit meta if applicable
+		if ( $pexels_data ) {
+			update_post_meta( $attachment_id, '_pexels_photographer',     sanitize_text_field( $pexels_data['photographer'] ?? '' ) );
+			update_post_meta( $attachment_id, '_pexels_photographer_url', esc_url_raw( $pexels_data['photographer_url'] ?? '' ) );
+			update_post_meta( $attachment_id, '_pexels_photo_url',        esc_url_raw( $pexels_data['photo_url'] ?? '' ) );
+		}
+
+		Logger::log( "Featured image set for #{$post_id}: {$image_url}", 'info', 'article_autopilot' );
+	}
+
+	/**
+	 * Extract the OG image URL from a source article page.
+	 */
+	private static function extract_source_og_image( string $url ): ?string {
+		if ( empty( $url ) ) {
+			return null;
+		}
+
+		$response = wp_remote_get( $url, [
+			'timeout'    => 10,
+			'user-agent' => Settings::get( 'crawl_user_agent', 'Content Engine Pro/1.0' ),
+		] );
+
+		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+
+		$html = wp_remote_retrieve_body( $response );
+		if ( empty( $html ) ) {
+			return null;
+		}
+
+		// Try OG image first
+		if ( preg_match( '/<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\'][^>]*>/i', $html, $m ) ) {
+			return filter_var( $m[1], FILTER_VALIDATE_URL ) ? $m[1] : null;
+		}
+		// Alternate attribute order
+		if ( preg_match( '/<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\'][^>]*>/i', $html, $m ) ) {
+			return filter_var( $m[1], FILTER_VALIDATE_URL ) ? $m[1] : null;
+		}
+
+		return null;
+	}
+
+	/**
+	 * Fetch a relevant image from Pexels API.
+	 * Returns array with src, photographer, photographer_url, photo_url — or null.
+	 */
+	private static function fetch_pexels_image( string $query ): ?array {
+		$key = Settings::get( 'pexels_key', '' );
+		if ( empty( $key ) ) {
+			return null;
+		}
+
+		$query    = urlencode( sanitize_text_field( $query ) );
+		$response = wp_remote_get( "https://api.pexels.com/v1/search?query={$query}&per_page=5&orientation=landscape", [
+			'timeout' => 10,
+			'headers' => [ 'Authorization' => $key ],
+		] );
+
+		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		$photo = $body['photos'][0] ?? null;
+
+		if ( ! $photo ) {
+			return null;
+		}
+
+		return [
+			'src'              => $photo['src']['large2x'] ?? $photo['src']['large'] ?? null,
+			'photographer'     => $photo['photographer'] ?? '',
+			'photographer_url' => $photo['photographer_url'] ?? '',
+			'photo_url'        => $photo['url'] ?? '',
+		];
 	}
 
 	/**

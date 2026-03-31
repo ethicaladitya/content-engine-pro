@@ -1,0 +1,394 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Content Engine Pro — Setup Wizard Styles
+   A full-page wizard UI rendered on top of WordPress admin.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* Reset & base */
+.cep-wizard-body {
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+  min-height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #1e293b;
+}
+.cep-wizard-body #wpbody,
+.cep-wizard-body #wpadminbar,
+.cep-wizard-body #adminmenumain,
+.cep-wizard-body #wpfooter { display: none !important; }
+
+/* ── Container ── */
+.cep-wizard {
+  max-width: 740px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+}
+
+/* ── Header ── */
+.cep-wizard__header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.cep-wizard__logo {
+  display: inline-block;
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -.3px;
+}
+.cep-wizard__header-sub {
+  color: rgba(255,255,255,.55);
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+
+/* ── Progress Bar ── */
+.cep-wizard__progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 32px;
+}
+.cep-wizard__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.cep-wizard__step-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  border: 2px solid rgba(255,255,255,.25);
+  color: rgba(255,255,255,.5);
+  background: transparent;
+  transition: all .2s;
+}
+.cep-wizard__step--active .cep-wizard__step-dot {
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(124,58,237,.5);
+}
+.cep-wizard__step--done .cep-wizard__step-dot {
+  background: #22c55e;
+  border-color: transparent;
+  color: #fff;
+}
+.cep-wizard__step-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: rgba(255,255,255,.4);
+}
+.cep-wizard__step--active .cep-wizard__step-label { color: rgba(255,255,255,.9); }
+.cep-wizard__step--done .cep-wizard__step-label   { color: rgba(255,255,255,.6); }
+
+.cep-wizard__step-line {
+  flex: 1;
+  height: 2px;
+  background: rgba(255,255,255,.15);
+  margin: 0 8px;
+  margin-bottom: 22px;
+  min-width: 40px;
+  transition: background .3s;
+}
+.cep-wizard__step-line--done { background: #22c55e; }
+
+/* ── Card ── */
+.cep-wizard__card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 40px 48px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35);
+}
+@media (max-width: 580px) {
+  .cep-wizard__card { padding: 28px 24px; }
+}
+
+.cep-wizard__card-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 8px !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cep-wizard__card-icon { font-size: 28px; }
+.cep-wizard__card-sub {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0 0 28px;
+  line-height: 1.6;
+}
+
+/* ── Form fields ── */
+.cep-wiz-field {
+  margin-bottom: 20px;
+}
+.cep-wiz-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 7px;
+}
+.cep-wiz-field input[type="text"],
+.cep-wiz-field input[type="email"],
+.cep-wiz-field input[type="password"] {
+  width: 100%;
+  padding: 11px 14px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e293b;
+  background: #fff;
+  transition: border-color .15s, box-shadow .15s;
+  box-sizing: border-box;
+}
+.cep-wiz-field input:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 3px rgba(124,58,237,.12);
+}
+.cep-wiz-required { color: #ef4444; }
+.cep-wiz-optional { font-weight: 400; color: #94a3b8; font-size: 12px; }
+.cep-wiz-help-link { font-size: 12px; color: #7c3aed; text-decoration: none; margin-left: 8px; font-weight: 600; }
+.cep-wiz-help-link:hover { text-decoration: underline; }
+.cep-wiz-hint { font-size: 12px; margin: 6px 0 0; }
+.cep-wiz-hint--ok { color: #16a34a; }
+.cep-wiz-notice {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #166534;
+  margin-top: 20px;
+  line-height: 1.55;
+}
+
+/* ── Buttons ── */
+.cep-wiz-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  flex-wrap: wrap;
+}
+.cep-wiz-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all .15s;
+  border: none;
+  line-height: 1;
+}
+.cep-wiz-btn--primary {
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(124,58,237,.35);
+}
+.cep-wiz-btn--primary:hover {
+  box-shadow: 0 6px 20px rgba(124,58,237,.45);
+  transform: translateY(-1px);
+  color: #fff;
+  text-decoration: none;
+}
+.cep-wiz-btn--finish { padding: 13px 28px; font-size: 15px; }
+.cep-wiz-btn--ghost {
+  background: transparent;
+  color: #64748b;
+  border: 2px solid #e2e8f0;
+}
+.cep-wiz-btn--ghost:hover {
+  border-color: #94a3b8;
+  color: #374151;
+  text-decoration: none;
+}
+
+/* ── Provider toggle ── */
+.cep-provider-toggle {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.cep-provider-option {
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  transition: all .15s;
+}
+.cep-provider-option:hover  { border-color: #7c3aed; color: #7c3aed; }
+.cep-provider-option.is-active { border-color: #7c3aed; background: #faf5ff; color: #7c3aed; }
+.cep-provider-option input { display: none; }
+
+/* ── Niche Grid (Step 2) ── */
+.cep-niche-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.cep-niche-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  background: #fff;
+}
+.cep-niche-card:hover { border-color: #7c3aed; box-shadow: 0 4px 12px rgba(124,58,237,.12); }
+.cep-niche-card.is-selected {
+  border-color: #7c3aed;
+  background: linear-gradient(135deg, #faf5ff 0%, #fdf2f8 100%);
+}
+.cep-niche-card__icon { font-size: 28px; margin-bottom: 4px; }
+.cep-niche-card__name { font-size: 14px; font-weight: 700; color: #0f172a; }
+.cep-niche-card__desc { font-size: 12px; color: #64748b; line-height: 1.45; margin: 0; }
+.cep-niche-card__types { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.cep-niche-tag {
+  padding: 2px 7px;
+  background: #f1f5f9;
+  color: #475569;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.cep-niche-card__check {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 100%);
+  color: #fff;
+  border-radius: 50%;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.cep-niche-card.is-selected .cep-niche-card__check { opacity: 1; }
+
+/* ── Palette Grid (Step 4) ── */
+.cep-palette-grid {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.cep-palette-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.cep-palette-card input { display: none; }
+.cep-palette-swatch {
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid transparent;
+  transition: all .15s;
+  box-shadow: 0 4px 10px rgba(0,0,0,.15);
+}
+.cep-palette-card:hover .cep-palette-swatch { transform: scale(1.06); }
+.cep-palette-card.is-selected .cep-palette-swatch { border-color: #0f172a; transform: scale(1.08); }
+.cep-palette-check { color: #fff; font-size: 22px; opacity: 0; transition: opacity .15s; }
+.cep-palette-card.is-selected .cep-palette-check { opacity: 1; }
+.cep-palette-label { font-size: 11px; font-weight: 700; color: #475569; text-align: center; }
+
+/* Live preview bar */
+.cep-palette-preview { border-radius: 10px; overflow: hidden; margin-bottom: 8px; }
+.cep-palette-preview__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  color: #fff;
+  gap: 12px;
+  transition: background .3s;
+}
+#cep-preview-brand { font-size: 17px; font-weight: 800; }
+#cep-preview-tagline { font-size: 12px; opacity: .75; }
+
+/* ── Done screen ── */
+.cep-done { text-align: center; }
+.cep-done__fireworks { font-size: 56px; margin-bottom: 10px; line-height: 1; }
+.cep-done__title { font-size: 28px; font-weight: 900; color: #0f172a; margin: 0 0 10px !important; }
+.cep-done__sub { font-size: 15px; color: #475569; margin: 0 0 28px; line-height: 1.6; }
+
+.cep-done__summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  text-align: left;
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cep-done__row { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: #374151; }
+.cep-done__row-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+
+.cep-done__actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.cep-done__rerun { font-size: 13px; color: #94a3b8; margin: 0; }
+.cep-done__rerun a { color: #7c3aed; text-decoration: none; }
+.cep-done__rerun a:hover { text-decoration: underline; }
+
+/* ── Screen reader only ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  border: 0;
+}

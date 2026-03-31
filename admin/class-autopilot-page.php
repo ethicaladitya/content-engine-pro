@@ -8,8 +8,6 @@ use ContentEnginePro\Reviews\ReviewAutopilot;
 use ContentEnginePro\Jobs\JobAggregator;
 use ContentEnginePro\Crawl\Crawler;
 use ContentEnginePro\Trending\TrendingAutopilot;
-use ContentEnginePro\Seo\SeoAutopilot;
-use ContentEnginePro\Seo\SeoPluginDetector;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -45,6 +43,7 @@ class AutopilotPage {
 			<?php if ( $notice ) : ?>
 				<div class="notice notice-success is-dismissible"><p><?php echo wp_kses_post( $notice ); ?></p></div>
 			<?php endif; ?>
+			<div id="cep-ajax-notice-area"></div>
 
 			<!-- Run Full Pipeline -->
 			<div class="cep-pipeline-banner">
@@ -52,13 +51,9 @@ class AutopilotPage {
 					<strong>🚀 Run Full Pipeline</strong>
 					<span>Crawl all sources → Publish articles → Aggregate jobs in one click.</span>
 				</div>
-				<form method="post" style="display:inline">
-					<?php wp_nonce_field( 'cep_trigger_autopilot', 'cep_trigger_nonce' ); ?>
-					<input type="hidden" name="cep_trigger" value="full_pipeline">
-					<button type="submit" class="button button-primary button-hero cep-pipeline-run-btn">
-						▶ Run Full Pipeline
-					</button>
-				</form>
+				<button type="button" class="button button-primary button-hero cep-pipeline-run-btn cep-trigger-btn" data-trigger="full_pipeline">
+					▶ Run Full Pipeline
+				</button>
 			</div>
 
 			<div class="cep-autopilot-grid">
@@ -97,13 +92,9 @@ class AutopilotPage {
 						</div>
 					</div>
 					<div class="cep-autopilot-card__footer">
-						<form method="post">
-							<?php wp_nonce_field( 'cep_trigger_autopilot', 'cep_trigger_nonce' ); ?>
-							<input type="hidden" name="cep_trigger" value="article_autopilot">
-							<button type="submit" class="button button-primary" <?php echo ! Settings::is_enabled( 'article_autopilot_enabled' ) ? 'disabled' : ''; ?>>
-								Run Now
-							</button>
-						</form>
+						<button type="button" class="button button-primary cep-trigger-btn" data-trigger="article_autopilot" <?php echo ! Settings::is_enabled( 'article_autopilot_enabled' ) ? 'disabled' : ''; ?>>
+						Run Now
+					</button>
 					</div>
 				</div>
 
@@ -141,13 +132,9 @@ class AutopilotPage {
 						</div>
 					</div>
 					<div class="cep-autopilot-card__footer">
-						<form method="post">
-							<?php wp_nonce_field( 'cep_trigger_autopilot', 'cep_trigger_nonce' ); ?>
-							<input type="hidden" name="cep_trigger" value="review_discover">
-							<button type="submit" class="button button-primary" <?php echo ! Settings::is_enabled( 'review_autopilot_enabled' ) ? 'disabled' : ''; ?>>
-								Discover Now
-							</button>
-						</form>
+						<button type="button" class="button button-primary cep-trigger-btn" data-trigger="review_discover" <?php echo ! Settings::is_enabled( 'review_autopilot_enabled' ) ? 'disabled' : ''; ?>>
+						Discover Now
+					</button>
 					</div>
 				</div>
 
@@ -185,13 +172,9 @@ class AutopilotPage {
 						</div>
 					</div>
 					<div class="cep-autopilot-card__footer">
-						<form method="post">
-							<?php wp_nonce_field( 'cep_trigger_autopilot', 'cep_trigger_nonce' ); ?>
-							<input type="hidden" name="cep_trigger" value="review_generate">
-							<button type="submit" class="button button-primary" <?php echo ( ! Settings::is_enabled( 'review_autopilot_enabled' ) || $stats['discovery_pending'] === 0 ) ? 'disabled' : ''; ?>>
-								Generate Now
-							</button>
-						</form>
+						<button type="button" class="button button-primary cep-trigger-btn" data-trigger="review_generate" <?php echo ( ! Settings::is_enabled( 'review_autopilot_enabled' ) || $stats['discovery_pending'] === 0 ) ? 'disabled' : ''; ?>>
+						Generate Now
+					</button>
 					</div>
 				</div>
 
@@ -229,13 +212,9 @@ class AutopilotPage {
 						</div>
 					</div>
 					<div class="cep-autopilot-card__footer">
-						<form method="post">
-							<?php wp_nonce_field( 'cep_trigger_autopilot', 'cep_trigger_nonce' ); ?>
-							<input type="hidden" name="cep_trigger" value="jobs_aggregate">
-							<button type="submit" class="button button-primary" <?php echo ! Settings::is_enabled( 'jobs_autopilot_enabled' ) ? 'disabled' : ''; ?>>
-								Aggregate Now
-							</button>
-						</form>
+						<button type="button" class="button button-primary cep-trigger-btn" data-trigger="jobs_aggregate" <?php echo ! Settings::is_enabled( 'jobs_autopilot_enabled' ) ? 'disabled' : ''; ?>>
+						Aggregate Now
+					</button>
 					</div>
 				</div>
 
@@ -278,13 +257,9 @@ class AutopilotPage {
 					</div>
 				</div>
 				<div class="cep-autopilot-card__footer">
-					<form method="post">
-						<?php wp_nonce_field( 'cep_trigger_autopilot', 'cep_trigger_nonce' ); ?>
-						<input type="hidden" name="cep_trigger" value="trending_discover">
-						<button type="submit" class="button button-primary" <?php disabled( ! $trending_enabled ); ?>>
-							<?php esc_html_e( 'Discover & Queue Now', 'content-engine-pro' ); ?>
-						</button>
-					</form>
+					<button type="button" class="button button-primary cep-trigger-btn" data-trigger="trending_discover" <?php disabled( ! $trending_enabled ); ?>>
+					<?php esc_html_e( 'Discover & Queue Now', 'content-engine-pro' ); ?>
+				</button>
 					<?php if ( ! $trending_enabled ) : ?>
 					<p class="cep-card-hint"><?php esc_html_e( 'Enable in Settings → Niche &amp; Autopilot → Trending Topics.', 'content-engine-pro' ); ?></p>
 					<?php endif; ?>
@@ -292,60 +267,6 @@ class AutopilotPage {
 			</div>
 
 			</div><!-- .cep-autopilot-grid -->
-
-			<!-- SEO Autopilot Card (summary; full page at cep-seo) -->
-			<?php
-			$seo_enabled = Settings::is_enabled( 'seo_autopilot_enabled' );
-			$seo_stats   = SeoAutopilot::get_stats();
-			$seo_plugin  = SeoPluginDetector::detect_label();
-			?>
-			<div class="cep-autopilot-card <?php echo $seo_enabled ? 'cep-active cep-active--seo' : 'cep-inactive'; ?>">
-				<div class="cep-autopilot-card__header">
-					<span class="dashicons dashicons-chart-area cep-pipeline-icon cep-pipeline-icon--seo"></span>
-					<div>
-						<h2><?php esc_html_e( 'SEO Autopilot', 'content-engine-pro' ); ?></h2>
-						<span class="cep-status-badge <?php echo $seo_enabled ? 'cep-status-badge--active' : 'cep-status-badge--inactive'; ?>">
-							<?php echo $seo_enabled ? esc_html__( 'Enabled', 'content-engine-pro' ) : esc_html__( 'Disabled', 'content-engine-pro' ); ?>
-						</span>
-					</div>
-				</div>
-				<div class="cep-autopilot-card__body">
-					<div class="cep-stat-row">
-						<span><?php esc_html_e( 'SEO plugin', 'content-engine-pro' ); ?></span>
-						<strong><?php echo esc_html( $seo_plugin ); ?></strong>
-					</div>
-					<div class="cep-stat-row">
-						<span><?php esc_html_e( 'Issues pending', 'content-engine-pro' ); ?></span>
-						<strong><?php echo (int) $seo_stats['pending']; ?></strong>
-					</div>
-					<div class="cep-stat-row">
-						<span><?php esc_html_e( 'Auto-fixed', 'content-engine-pro' ); ?></span>
-						<strong><?php echo (int) $seo_stats['auto_fixed']; ?></strong>
-					</div>
-					<div class="cep-stat-row">
-						<span><?php esc_html_e( 'Scan window', 'content-engine-pro' ); ?></span>
-						<strong><?php echo (int) Settings::get( 'seo_scan_days', 3 ); ?> days</strong>
-					</div>
-					<div class="cep-stat-row">
-						<span><?php esc_html_e( 'Next scheduled', 'content-engine-pro' ); ?></span>
-						<strong><?php echo esc_html( self::next_run( 'cep_seo_autopilot' ) ); ?></strong>
-					</div>
-				</div>
-				<div class="cep-autopilot-card__footer">
-					<form method="post">
-						<?php wp_nonce_field( 'cep_trigger_autopilot', 'cep_trigger_nonce' ); ?>
-						<input type="hidden" name="cep_trigger" value="seo_autopilot">
-						<button type="submit" class="button button-primary" <?php disabled( ! $seo_enabled ); ?>>
-							<?php esc_html_e( 'Scan Now', 'content-engine-pro' ); ?>
-						</button>
-					</form>
-					<p class="cep-card-hint">
-						<a href="<?php echo esc_url( admin_url( 'admin.php?page=cep-seo' ) ); ?>">
-							<?php esc_html_e( 'View all issues →', 'content-engine-pro' ); ?>
-						</a>
-					</p>
-				</div>
-			</div>
 
 			<!-- Product Discovery Queue -->
 			<?php if ( $stats['discovery_total'] > 0 ) : ?>
@@ -365,7 +286,8 @@ class AutopilotPage {
 					<tbody>
 						<?php
 						$queue = $wpdb->get_results(
-							"SELECT * FROM {$wpdb->prefix}cep_product_discovery ORDER BY status ASC, active_installs DESC LIMIT 50",
+							// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
+						"SELECT * FROM {$wpdb->prefix}cep_product_discovery ORDER BY status ASC, active_installs DESC LIMIT 50",
 							ARRAY_A
 						);
 						foreach ( $queue as $row ) :
@@ -423,88 +345,91 @@ class AutopilotPage {
 		.cep-section h2{font-size:16px;font-weight:600;margin-bottom:10px}
 		.cep-active--trending{border-top-color:#f97316!important}
 		.cep-pipeline-icon--trending{color:#f97316!important}
-		.cep-active--seo{border-top-color:#10b981!important}
-		.cep-pipeline-icon--seo{color:#10b981!important}
 		.cep-card-hint{margin:8px 0 0;font-size:12px;color:#666}
-		.cep-btn-loading{opacity:.7;cursor:not-allowed;pointer-events:none}
-		.cep-btn-spinner{display:inline-block;width:10px;height:10px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:cep-spin .7s linear infinite;margin-right:5px;vertical-align:middle}
-		@keyframes cep-spin{to{transform:rotate(360deg)}}
-		.cep-trigger-notice{padding:10px 14px;border-left:4px solid #0073aa;background:#f0f6fc;margin-top:10px;border-radius:0 4px 4px 0;font-size:13px;display:none}
-		.cep-trigger-notice.cep-notice-success{border-left-color:#1a7a3c;background:#edfaf1}
-		.cep-trigger-notice.cep-notice-error{border-left-color:#c0392b;background:#fdf0ef}
+
+		/* ── Trigger button loading states ── */
+		@keyframes cep-card-shimmer {
+			0%   { background-position: -400px 0 }
+			100% { background-position: 400px 0 }
+		}
+		@keyframes cep-spin {
+			to { transform: rotate(360deg) }
+		}
+		@keyframes cep-flash-success {
+			0%,100% { box-shadow: none }
+			40%      { box-shadow: 0 0 0 3px #34d399 }
+		}
+		@keyframes cep-flash-error {
+			0%,100% { box-shadow: none }
+			40%      { box-shadow: 0 0 0 3px #f87171 }
+		}
+		.cep-autopilot-card--running {
+			position: relative;
+			overflow: hidden;
+		}
+		.cep-autopilot-card--running::after {
+			content: '';
+			position: absolute;
+			inset: 0;
+			background: linear-gradient(90deg, transparent 0%, rgba(107,110,249,.08) 50%, transparent 100%);
+			background-size: 800px 100%;
+			animation: cep-card-shimmer 1.4s infinite linear;
+			pointer-events: none;
+			z-index: 1;
+		}
+		.cep-autopilot-card--success { animation: cep-flash-success .7s ease }
+		.cep-autopilot-card--error   { animation: cep-flash-error .7s ease }
+		.cep-trigger-btn.cep-running  { opacity: .8; cursor: wait }
+		.cep-trigger-btn .cep-btn-spinner {
+			display: inline-block;
+			width: 11px; height: 11px;
+			border: 2px solid currentColor;
+			border-top-color: transparent;
+			border-radius: 50%;
+			animation: cep-spin .7s linear infinite;
+			vertical-align: middle;
+			margin-right: 5px;
+		}
+		/* Floating result notice */
+		.cep-ajax-notice {
+			position: fixed;
+			bottom: 28px; right: 28px;
+			max-width: 420px;
+			padding: 12px 18px;
+			border-radius: 8px;
+			font-size: 13px;
+			font-weight: 500;
+			box-shadow: 0 4px 20px rgba(0,0,0,.18);
+			z-index: 99999;
+			line-height: 1.5;
+		}
+		.cep-ajax-notice--success { background: #ecfdf5; color: #065f46; border-left: 4px solid #10b981 }
+		.cep-ajax-notice--error   { background: #fef2f2; color: #7f1d1d; border-left: 4px solid #ef4444 }
 		</style>
-		<script>
-		( function () {
-			'use strict';
-
-			// Intercept every trigger form on this page and run it via AJAX so only
-			// the clicked button shows a loading state — no full-page reload.
-			document.querySelectorAll( '.cep-autopilot-card__footer form, .cep-pipeline-banner form' ).forEach( function ( form ) {
-				form.addEventListener( 'submit', function ( e ) {
-					e.preventDefault();
-
-					var btn     = form.querySelector( 'button[type="submit"]' );
-					var trigger = ( form.querySelector( 'input[name="cep_trigger"]' ) || {} ).value;
-
-					if ( ! btn || ! trigger ) {
-						return;
-					}
-
-					// Find or create the result notice element for this card/banner.
-					var card   = form.closest( '.cep-autopilot-card, .cep-pipeline-banner' );
-					var notice = card ? card.querySelector( '.cep-trigger-notice' ) : null;
-					if ( ! notice ) {
-						notice = document.createElement( 'p' );
-						notice.className = 'cep-trigger-notice';
-						form.parentNode.insertBefore( notice, form.nextSibling );
-					}
-
-					// Loading state.
-					var originalHTML = btn.innerHTML;
-					btn.disabled    = true;
-					btn.classList.add( 'cep-btn-loading' );
-					btn.innerHTML   = '<span class="cep-btn-spinner"></span>Running&hellip;';
-					notice.style.display = 'none';
-					notice.className     = 'cep-trigger-notice';
-
-					// Build form data.
-					var body = new URLSearchParams( {
-						action : 'cep_manual_trigger',
-						nonce  : ( window.cepAdmin || {} ).nonce || '',
-						trigger: trigger,
-					} );
-
-					fetch( ( window.cepAdmin || {} ).ajaxUrl || ajaxurl, {
-						method     : 'POST',
-						credentials: 'same-origin',
-						headers    : { 'Content-Type': 'application/x-www-form-urlencoded' },
-						body       : body.toString(),
-					} )
-					.then( function ( r ) { return r.json(); } )
-					.then( function ( data ) {
-						notice.innerHTML     = data.data && data.data.message ? data.data.message : ( data.success ? '✅ Done.' : '❌ Something went wrong.' );
-						notice.classList.add( data.success ? 'cep-notice-success' : 'cep-notice-error' );
-						notice.style.display = 'block';
-					} )
-					.catch( function () {
-						notice.innerHTML     = '❌ Request failed — please try again.';
-						notice.classList.add( 'cep-notice-error' );
-						notice.style.display = 'block';
-					} )
-					.finally( function () {
-						btn.disabled   = false;
-						btn.classList.remove( 'cep-btn-loading' );
-						btn.innerHTML  = originalHTML;
-					} );
-				} );
-			} );
-		} () );
-		</script>
 		<?php
 	}
 
 	/**
-	 * Handle manual pipeline trigger via POST (legacy full-page fallback).
+	 * AJAX handler for autopilot trigger buttons.
+	 */
+	public static function ajax_trigger(): void {
+		if ( ! check_ajax_referer( 'cep_admin_nonce', 'nonce', false ) || ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => 'Unauthorized.' ], 403 );
+		}
+
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotUnslashed -- sanitize_key handles slashes
+		$trigger = sanitize_key( wp_unslash( $_POST['trigger'] ?? '' ) );
+		$message = self::run_trigger( $trigger );
+
+		if ( $message ) {
+			wp_send_json_success( [ 'message' => $message ] );
+		} else {
+			wp_send_json_error( [ 'message' => 'Unknown trigger.' ] );
+		}
+	}
+
+	/**
+	 * Handle manual pipeline trigger via POST (form fallback).
 	 */
 	private static function handle_trigger(): string {
 		if ( empty( $_POST['cep_trigger'] ) || empty( $_POST['cep_trigger_nonce'] ) ) {
@@ -519,49 +444,47 @@ class AutopilotPage {
 			return '';
 		}
 
-		return self::run_trigger( sanitize_key( $_POST['cep_trigger'] ) );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotUnslashed
+		return self::run_trigger( sanitize_key( wp_unslash( $_POST['cep_trigger'] ) ) );
 	}
 
 	/**
-	 * Execute a named pipeline trigger and return a human-readable result string.
-	 * Called both by handle_trigger() (POST fallback) and the AJAX handler.
+	 * Execute a named pipeline trigger and return a result message.
 	 */
-	public static function run_trigger( string $trigger ): string {
+	private static function run_trigger( string $trigger ): string {
 		switch ( $trigger ) {
 			case 'full_pipeline':
 				global $wpdb;
-				// Crawl all windows
 				foreach ( [ 'morning', 'midday', 'evening', 'weekly' ] as $window ) {
 					Crawler::run_window( $window );
 				}
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 				$queued = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}cep_raw_content WHERE status = 'pending'" );
 
-				// Publish articles
 				$before = (int) $wpdb->get_var(
 					$wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish'", Settings::get( 'primary_cpt_slug', 'post' ) )
 				);
 				ArticleAutopilot::run();
-				$after     = (int) $wpdb->get_var(
+				$after = (int) $wpdb->get_var(
 					$wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish'", Settings::get( 'primary_cpt_slug', 'post' ) )
 				);
 				$published = $after - $before;
 
-				// Jobs
 				JobAggregator::run();
 
-				return "✅ Pipeline complete — <strong>{$queued}</strong> items crawled into queue, <strong>{$published}</strong> new article(s) published.";
+				return '✅ Pipeline complete — <strong>' . (int) $queued . '</strong> items crawled into queue, <strong>' . (int) $published . '</strong> new article(s) published.';
 
 			case 'article_autopilot':
 				ArticleAutopilot::run();
-				return 'Article autopilot run triggered successfully.';
+				return esc_html__( 'Article autopilot run complete.', 'content-engine-pro' );
 
 			case 'review_discover':
 				ReviewDiscoverer::run();
-				return 'Review discovery run triggered successfully.';
+				return esc_html__( 'Review discovery complete.', 'content-engine-pro' );
 
 			case 'review_generate':
 				ReviewAutopilot::run();
-				return 'Review generation run triggered successfully.';
+				return esc_html__( 'Review generation complete.', 'content-engine-pro' );
 
 			case 'jobs_aggregate':
 				JobAggregator::run();
@@ -569,22 +492,11 @@ class AutopilotPage {
 
 			case 'trending_discover':
 				$queued = TrendingAutopilot::discover_and_queue();
-				return sprintf(
+				return esc_html( sprintf(
 					/* translators: %d: number of topics queued */
-					esc_html( _n( 'Trending discovery complete — %d topic queued.', 'Trending discovery complete — %d topics queued.', $queued, 'content-engine-pro' ) ),
+					_n( 'Trending discovery complete — %d topic queued.', 'Trending discovery complete — %d topics queued.', $queued, 'content-engine-pro' ),
 					$queued
-				);
-
-			case 'seo_autopilot':
-				$summary = SeoAutopilot::run();
-				return sprintf(
-					/* translators: %1$d posts, %2$d issues, %3$d auto-fixed, %4$d pending */
-					esc_html__( 'SEO scan complete — %1$d post(s) scanned, %2$d issue(s) found, %3$d auto-fixed, %4$d pending review.', 'content-engine-pro' ),
-					$summary['posts_scanned'],
-					$summary['issues_found'],
-					$summary['auto_fixed'],
-					$summary['pending']
-				);
+				) );
 		}
 
 		return '';
@@ -610,6 +522,7 @@ class AutopilotPage {
 		$reviews_counts = wp_count_posts( $reviews_cpt );
 		$jobs_counts    = wp_count_posts( $jobs_cpt );
 
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
 		return [
 			'articles_pending'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$raw_table} WHERE status = 'pending'" ),
 			'articles_published' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$raw_table} WHERE status = 'published'" ),
@@ -626,6 +539,7 @@ class AutopilotPage {
 			'trending_total'     => $trending_stats['total'],
 			'trending_queued'    => $trending_stats['queued'],
 		];
+		// phpcs:enable WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,WordPress.DB.PreparedSQL.NotPrepared
 	}
 
 	/**

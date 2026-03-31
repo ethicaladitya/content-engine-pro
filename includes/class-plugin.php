@@ -148,10 +148,9 @@ class Plugin {
 		// Trending topics autopilot
 		add_action( 'cep_trending_autopilot', [ Trending\TrendingAutopilot::class, 'run' ], 10, 0 );
 
-		// SEO Autopilot (daily scan of recent posts)
-		add_action( 'cep_seo_autopilot', [ Seo\SeoAutopilot::class, 'run' ], 10, 0 );
-		if ( Settings::is_enabled( 'seo_autopilot_enabled' ) && ! wp_next_scheduled( 'cep_seo_autopilot' ) ) {
-			wp_schedule_event( time(), 'daily', 'cep_seo_autopilot' );
+		// SEO Agent
+		if ( Settings::is_enabled( 'enable_seo_agent' ) ) {
+			add_action( 'cep_seo_analysis', [ Seo\SeoAgent::class, 'run' ], 10, 0 );
 		}
 
 		// Maintenance

@@ -125,6 +125,87 @@ if ( ! function_exists( 'cep_read_time' ) ) {
 	}
 }
 
+if ( ! function_exists( 'cep_get_review_meta' ) ) {
+	/**
+	 * Retrieve normalised review meta for a given post.
+	 *
+	 * Handles both formats written by the autopilot (JSON arrays, legacy key names)
+	 * and by the manual meta-box (newline-separated strings, standard key names).
+	 *
+	 * @param int $post_id
+	 * @return array{rating:float, pros:array, cons:array, verdict:string, price:string, product_url:string, product_type:string, aff_slug:string}
+	 */
+	function cep_get_review_meta( int $post_id ): array {
+		// Rating — shortcode saves _cep_review_star_rating; autopilot saves _cep_review_rating
+		$rating = (float) ( get_post_meta( $post_id, '_cep_review_star_rating', true )
+		          ?: get_post_meta( $post_id, '_cep_review_rating', true ) );
+
+		// Pros — JSON array (autopilot) or newline-separated (manual)
+		$pros_raw = get_post_meta( $post_id, '_cep_review_pros', true );
+		$pros     = [];
+		if ( $pros_raw ) {
+			$decoded = json_decode( $pros_raw, true );
+			$pros    = is_array( $decoded )
+				? array_values( array_filter( $decoded ) )
+				: array_values( array_filter( array_map( 'trim', explode( "\n", $pros_raw ) ) ) );
+		}
+
+		// Cons — same dual-format handling
+		$cons_raw = get_post_meta( $post_id, '_cep_review_cons', true );
+		$cons     = [];
+		if ( $cons_raw ) {
+			$decoded = json_decode( $cons_raw, true );
+			$cons    = is_array( $decoded )
+				? array_values( array_filter( $decoded ) )
+				: array_values( array_filter( array_map( 'trim', explode( "\n", $cons_raw ) ) ) );
+		}
+
+		// Price — shortcode: _cep_review_price_from; autopilot: _cep_review_price
+		$price = (string) ( get_post_meta( $post_id, '_cep_review_price_from', true )
+		         ?: get_post_meta( $post_id, '_cep_review_price', true ) );
+
+		// Product URL — meta-box: _cep_review_product_url; autopilot: _cep_product_url
+		$product_url = (string) ( get_post_meta( $post_id, '_cep_review_product_url', true )
+		               ?: get_post_meta( $post_id, '_cep_product_url', true ) );
+
+		// Product type — meta-box: _cep_review_product_type; autopilot: _cep_product_type
+		$product_type = (string) ( get_post_meta( $post_id, '_cep_review_product_type', true )
+		                ?: get_post_meta( $post_id, '_cep_product_type', true ) );
+
+		return [
+			'rating'       => $rating,
+			'pros'         => $pros,
+			'cons'         => $cons,
+			'verdict'      => (string) get_post_meta( $post_id, '_cep_review_verdict', true ),
+			'price'        => $price,
+			'product_url'  => $product_url,
+			'product_type' => $product_type,
+			'aff_slug'     => (string) get_post_meta( $post_id, '_cep_review_affiliate_slug', true ),
+		];
+	}
+}
+
+if ( ! function_exists( 'cep_render_stars' ) ) {
+	/**
+	 * Render a star rating HTML string (5 stars).
+	 *
+	 * @param float  $rating  Score out of 5.
+	 * @param string $size    '' for normal, 'sm' for small, 'lg' for large.
+	 * @return string
+	 */
+	function cep_render_stars( float $rating, string $size = '' ): string {
+		$class = $size ? ' cep-stars--' . sanitize_html_class( $size ) : '';
+		$label = esc_attr( number_format( $rating, 1 ) ) . ' out of 5';
+		$html  = '<div class="cep-stars' . $class . '" aria-label="' . $label . '">';
+		for ( $i = 1; $i <= 5; $i++ ) {
+			$filled = $i <= round( $rating ) ? ' cep-star--filled' : '';
+			$html  .= '<span class="cep-star' . $filled . '">&#9733;</span>';
+		}
+		$html .= '</div>';
+		return $html;
+	}
+}
+
 if ( ! function_exists( 'cep_decrypt_affiliate_url' ) ) {
 	/**
 	 * Decrypt an AES-256-CBC encrypted affiliate URL.

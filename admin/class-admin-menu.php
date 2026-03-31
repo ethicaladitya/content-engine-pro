@@ -16,15 +16,35 @@ class AdminMenu {
 		add_action( 'admin_menu', [ $this, 'add_menus' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 		add_action( 'admin_init', [ $this, 'handle_early_actions' ] );
+		add_action( 'admin_init', [ $this, 'maybe_redirect_to_wizard' ] );
 		add_action( 'admin_init', [ SourcesPage::class, 'handle_post' ] );
+		add_action( 'wp_ajax_cep_run_trigger',        [ AutopilotPage::class, 'ajax_trigger' ] );
+		add_action( 'wp_ajax_cep_seo_run_analysis',   [ SeoAgentPage::class, 'ajax_run_analysis' ] );
+		add_action( 'wp_ajax_cep_seo_apply_fix',      [ SeoAgentPage::class, 'ajax_apply_fix' ] );
+		add_action( 'wp_ajax_cep_seo_apply_ai_fix',   [ SeoAgentPage::class, 'ajax_apply_ai_fix' ] );
+		add_action( 'wp_ajax_cep_seo_ignore_issue',   [ SeoAgentPage::class, 'ajax_ignore_issue' ] );
+		add_action( 'wp_ajax_cep_seo_bulk_fix',       [ SeoAgentPage::class, 'ajax_bulk_fix' ] );
 
-		// Autopilot manual trigger (AJAX — keeps page alive, only button shows loading).
-		add_action( 'wp_ajax_cep_manual_trigger', [ $this, 'ajax_manual_trigger' ] );
+		// Register the Setup Wizard as a submenu page + its save handler
+		( new SetupWizard() )->register();
+	}
 
-		// SEO Autopilot AJAX actions
-		add_action( 'wp_ajax_cep_seo_fix_issue',    [ $this, 'ajax_seo_fix' ] );
-		add_action( 'wp_ajax_cep_seo_ai_fix_issue', [ $this, 'ajax_seo_ai_fix' ] );
-		add_action( 'wp_ajax_cep_seo_ignore_issue', [ $this, 'ajax_seo_ignore' ] );
+	/**
+	 * Redirect to the Setup Wizard on first activation.
+	 * The transient is set in Activator::activate().
+	 */
+	public function maybe_redirect_to_wizard(): void {
+		if ( ! get_transient( 'cep_first_run_redirect' ) ) {
+			return;
+		}
+		// Don't redirect during bulk plugin activation or on the wizard page itself
+		if ( isset( $_GET['activate-multi'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			|| ( isset( $_GET['page'] ) && 'cep-setup-wizard' === $_GET['page'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			return;
+		}
+		delete_transient( 'cep_first_run_redirect' );
+		wp_safe_redirect( admin_url( 'admin.php?page=cep-setup-wizard' ) );
+		exit;
 	}
 
 	public function add_menus(): void {
@@ -46,8 +66,8 @@ class AdminMenu {
 		add_submenu_page( 'cep-dashboard', 'Content Queue', 'Content Queue', 'manage_options', 'cep-queue', [ $this, 'render_queue' ] );
 		add_submenu_page( 'cep-dashboard', 'Reviews', 'Reviews', 'manage_options', 'cep-reviews', [ $this, 'render_reviews' ] );
 		add_submenu_page( 'cep-dashboard', 'Affiliates', 'Affiliates', 'manage_options', 'cep-affiliates', [ $this, 'render_affiliates' ] );
-		add_submenu_page( 'cep-dashboard', 'SEO Autopilot', 'SEO Autopilot', 'manage_options', 'cep-seo', [ new SeoPage(), 'render' ] );
 		add_submenu_page( 'cep-dashboard', 'Logs', 'Logs', 'manage_options', 'cep-logs', [ $this, 'render_logs' ] );
+		add_submenu_page( 'cep-dashboard', 'SEO Agent', 'SEO Agent', 'manage_options', 'cep-seo-agent', [ $this, 'render_seo_agent' ] );
 		add_submenu_page( 'cep-dashboard', 'Settings', 'Settings', 'manage_options', 'cep-settings', [ new SettingsPage(), 'render' ] );
 	}
 
@@ -103,80 +123,7 @@ class AdminMenu {
 		LogsPage::render();
 	}
 
-	// ─── Manual Pipeline Trigger (AJAX) ──────────────────────────────────────
-
-	public function ajax_manual_trigger(): void {
-		check_ajax_referer( 'cep_admin_nonce', 'nonce' );
-
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'content-engine-pro' ) ] );
-		}
-
-		$trigger = sanitize_key( wp_unslash( $_POST['trigger'] ?? '' ) );
-		if ( '' === $trigger ) {
-			wp_send_json_error( [ 'message' => __( 'No trigger specified.', 'content-engine-pro' ) ] );
-		}
-
-		$message = AutopilotPage::run_trigger( $trigger );
-		wp_send_json_success( [ 'message' => $message ] );
-	}
-
-	// ─── SEO Autopilot AJAX ───────────────────────────────────────────────────
-
-	public function ajax_seo_fix(): void {
-		check_ajax_referer( 'cep_admin_nonce', 'nonce' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( [ 'message' => 'Insufficient permissions.' ] );
-			return;
-		}
-		$issue_id = (int) ( $_POST['issue_id'] ?? 0 );
-		if ( $issue_id <= 0 ) {
-			wp_send_json_error( [ 'message' => 'Invalid issue ID.' ] );
-			return;
-		}
-		$fixed = \ContentEnginePro\Seo\SeoAutopilot::apply_manual_fix( $issue_id );
-		if ( $fixed ) {
-			wp_send_json_success( [ 'message' => 'Fix applied successfully.' ] );
-		} else {
-			wp_send_json_error( [ 'message' => 'Could not apply fix automatically. Try AI Fix or edit the post manually.' ] );
-		}
-	}
-
-	public function ajax_seo_ai_fix(): void {
-		check_ajax_referer( 'cep_admin_nonce', 'nonce' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( [ 'message' => 'Insufficient permissions.' ] );
-			return;
-		}
-		$issue_id = (int) ( $_POST['issue_id'] ?? 0 );
-		if ( $issue_id <= 0 ) {
-			wp_send_json_error( [ 'message' => 'Invalid issue ID.' ] );
-			return;
-		}
-		$fixed = \ContentEnginePro\Seo\SeoAutopilot::apply_ai_fix( $issue_id );
-		if ( $fixed ) {
-			wp_send_json_success( [ 'message' => 'AI fix applied successfully.' ] );
-		} else {
-			wp_send_json_error( [ 'message' => 'AI fix could not be applied. Please review the post manually.' ] );
-		}
-	}
-
-	public function ajax_seo_ignore(): void {
-		check_ajax_referer( 'cep_admin_nonce', 'nonce' );
-		if ( ! current_user_can( 'manage_options' ) ) {
-			wp_send_json_error( [ 'message' => 'Insufficient permissions.' ] );
-			return;
-		}
-		$issue_id = (int) ( $_POST['issue_id'] ?? 0 );
-		if ( $issue_id <= 0 ) {
-			wp_send_json_error( [ 'message' => 'Invalid issue ID.' ] );
-			return;
-		}
-		$done = \ContentEnginePro\Seo\SeoAutopilot::ignore_issue( $issue_id );
-		if ( $done ) {
-			wp_send_json_success();
-		} else {
-			wp_send_json_error( [ 'message' => 'Could not update issue status.' ] );
-		}
+	public function render_seo_agent(): void {
+		SeoAgentPage::render();
 	}
 }
