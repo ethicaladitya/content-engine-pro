@@ -18,7 +18,12 @@ class AdminMenu {
 		add_action( 'admin_init', [ $this, 'handle_early_actions' ] );
 		add_action( 'admin_init', [ $this, 'maybe_redirect_to_wizard' ] );
 		add_action( 'admin_init', [ SourcesPage::class, 'handle_post' ] );
-		add_action( 'wp_ajax_cep_run_trigger', [ AutopilotPage::class, 'ajax_trigger' ] );
+		add_action( 'wp_ajax_cep_run_trigger',        [ AutopilotPage::class, 'ajax_trigger' ] );
+		add_action( 'wp_ajax_cep_seo_run_analysis',   [ SeoAgentPage::class, 'ajax_run_analysis' ] );
+		add_action( 'wp_ajax_cep_seo_apply_fix',      [ SeoAgentPage::class, 'ajax_apply_fix' ] );
+		add_action( 'wp_ajax_cep_seo_apply_ai_fix',   [ SeoAgentPage::class, 'ajax_apply_ai_fix' ] );
+		add_action( 'wp_ajax_cep_seo_ignore_issue',   [ SeoAgentPage::class, 'ajax_ignore_issue' ] );
+		add_action( 'wp_ajax_cep_seo_bulk_fix',       [ SeoAgentPage::class, 'ajax_bulk_fix' ] );
 
 		// Register the Setup Wizard as a submenu page + its save handler
 		( new SetupWizard() )->register();
@@ -62,6 +67,7 @@ class AdminMenu {
 		add_submenu_page( 'cep-dashboard', 'Reviews', 'Reviews', 'manage_options', 'cep-reviews', [ $this, 'render_reviews' ] );
 		add_submenu_page( 'cep-dashboard', 'Affiliates', 'Affiliates', 'manage_options', 'cep-affiliates', [ $this, 'render_affiliates' ] );
 		add_submenu_page( 'cep-dashboard', 'Logs', 'Logs', 'manage_options', 'cep-logs', [ $this, 'render_logs' ] );
+		add_submenu_page( 'cep-dashboard', 'SEO Agent', 'SEO Agent', 'manage_options', 'cep-seo-agent', [ $this, 'render_seo_agent' ] );
 		add_submenu_page( 'cep-dashboard', 'Settings', 'Settings', 'manage_options', 'cep-settings', [ new SettingsPage(), 'render' ] );
 	}
 
@@ -115,5 +121,9 @@ class AdminMenu {
 
 	public function render_logs(): void {
 		LogsPage::render();
+	}
+
+	public function render_seo_agent(): void {
+		SeoAgentPage::render();
 	}
 }

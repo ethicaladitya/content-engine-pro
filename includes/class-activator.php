@@ -181,6 +181,39 @@ class Activator {
 			KEY idx_demand_score (demand_score)
 		) {$charset};";
 
+		// SEO Agent — issue tracker
+		$sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cep_seo_issues (
+			id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			post_id       BIGINT UNSIGNED NOT NULL,
+			post_type     VARCHAR(60) NOT NULL DEFAULT 'post',
+			issue_type    VARCHAR(60) NOT NULL,
+			severity      ENUM('critical','warning','info') NOT NULL DEFAULT 'warning',
+			description   TEXT NOT NULL,
+			auto_fixable  TINYINT(1) NOT NULL DEFAULT 0,
+			status        ENUM('open','fixed','ignored') NOT NULL DEFAULT 'open',
+			fix_applied   TEXT NULL,
+			detected_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			fixed_at      DATETIME NULL,
+			PRIMARY KEY (id),
+			KEY idx_seo_post     (post_id),
+			KEY idx_seo_status   (status),
+			KEY idx_seo_type     (issue_type),
+			KEY idx_seo_severity (severity)
+		) {$charset};";
+
+		// SEO Agent — run history
+		$sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cep_seo_runs (
+			id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			started_at      DATETIME NOT NULL,
+			completed_at    DATETIME NULL,
+			posts_scanned   INT NOT NULL DEFAULT 0,
+			issues_found    INT NOT NULL DEFAULT 0,
+			issues_fixed    INT NOT NULL DEFAULT 0,
+			issues_ai_fixed INT NOT NULL DEFAULT 0,
+			PRIMARY KEY (id),
+			KEY idx_seo_run_started (started_at)
+		) {$charset};";
+
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		foreach ( $sql as $query ) {
 			dbDelta( $query );

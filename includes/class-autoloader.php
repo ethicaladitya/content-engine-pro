@@ -37,6 +37,7 @@ class Autoloader {
 		'Api\\'        => 'api/',
 		'Cli\\'        => 'modules/cli/',
 		'Trending\\'   => 'modules/trending/',
+		'Seo\\'        => 'modules/seo-agent/',
 		'PostType\\'   => 'post-types/',
 		// Bare classes (no sub-namespace) → includes/
 	];

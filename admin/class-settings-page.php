@@ -20,6 +20,7 @@ class SettingsPage {
 		'features' => 'Features',
 		'niche'    => 'Niche & Autopilot',
 		'advanced' => 'Advanced',
+		'seo'      => 'SEO Agent',
 	];
 
 	public function render(): void {
@@ -97,6 +98,9 @@ class SettingsPage {
 				break;
 			case 'advanced':
 				$this->tab_advanced( $s );
+				break;
+			case 'seo':
+				$this->tab_seo( $s );
 				break;
 		}
 	}
@@ -518,6 +522,56 @@ class SettingsPage {
 		<?php
 	}
 
+	// ─── Tab: SEO Agent ─────────────────────────────────────────────────────
+
+	private function tab_seo( array $s ): void {
+		?>
+		<div class="cep-section">
+			<h2 class="cep-section-title">SEO Agent</h2>
+			<p class="cep-section-desc">
+				Automatically scans all published posts for SEO issues and applies rule-based fixes.
+				Issues that cannot be fixed automatically can be resolved with AI from the
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=cep-seo-agent' ) ); ?>">SEO Agent page</a>.
+			</p>
+			<?php
+			$this->field_toggle( 'enable_seo_agent', 'Enable SEO Agent', $s['enable_seo_agent'] ?? '1', 'Run scheduled SEO analysis every few days across all published posts.' );
+			$this->field_toggle( 'seo_auto_fix_enabled', 'Auto-fix After Scan', $s['seo_auto_fix_enabled'] ?? '1', 'Automatically apply rule-based fixes (alt text, slugs, meta descriptions, etc.) immediately after each scan.' );
+			$this->field_number( 'seo_agent_interval', 'Scan Interval (days)', $s['seo_agent_interval'] ?? '3', '1', '30', '1', 'How many days between full SEO scans. Default: 3.' );
+			?>
+		</div>
+
+		<div class="cep-section">
+			<h2 class="cep-section-title">Content Thresholds</h2>
+			<?php
+			$this->field_number( 'seo_min_word_count', 'Minimum Word Count', $s['seo_min_word_count'] ?? '300', '50', '2000', '50', 'Posts below this word count are flagged as thin content.' );
+			?>
+		</div>
+
+		<div class="cep-section">
+			<h2 class="cep-section-title">Title Checks</h2>
+			<?php
+			$this->field_number( 'seo_title_min_length', 'Minimum Title Length (chars)', $s['seo_title_min_length'] ?? '30', '10', '60', '1', 'SEO titles shorter than this are flagged.' );
+			$this->field_number( 'seo_title_max_length', 'Maximum Title Length (chars)', $s['seo_title_max_length'] ?? '60', '40', '100', '1', 'SEO titles longer than this are flagged and auto-truncated.' );
+			?>
+		</div>
+
+		<div class="cep-section">
+			<h2 class="cep-section-title">Meta Description Checks</h2>
+			<?php
+			$this->field_number( 'seo_meta_desc_min_length', 'Minimum Meta Description Length (chars)', $s['seo_meta_desc_min_length'] ?? '100', '50', '160', '1', 'Meta descriptions shorter than this are flagged.' );
+			$this->field_number( 'seo_meta_desc_max_length', 'Maximum Meta Description Length (chars)', $s['seo_meta_desc_max_length'] ?? '160', '100', '320', '1', 'Meta descriptions longer than this are flagged and auto-truncated.' );
+			?>
+		</div>
+
+		<div class="cep-section">
+			<h2 class="cep-section-title">URL Slug Checks</h2>
+			<?php
+			$this->field_number( 'seo_slug_max_length', 'Maximum Slug Length (chars)', $s['seo_slug_max_length'] ?? '75', '20', '200', '1', 'Post slugs longer than this are flagged and auto-shortened.' );
+			?>
+		</div>
+		<?php
+	}
+
 	// ─── Save ────────────────────────────────────────────────────────────────
 
 	private function save_settings(): void {
@@ -555,6 +609,7 @@ class SettingsPage {
 				'jobs_autopilot_enabled', 'trending_autopilot_enabled',
 			],
 			'advanced' => [ 'auto_publish' ],
+			'seo'      => [ 'enable_seo_agent', 'seo_auto_fix_enabled' ],
 		];
 
 		$active_tab        = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'general'; // phpcs:ignore WordPress.Security.NonceVerification
@@ -626,6 +681,10 @@ class SettingsPage {
 			'jobs_max_per_run','jobs_dedup_days',
 			'research_timeout','research_max_text_chars',
 			'trending_max_per_run','trending_min_demand_score',
+			'seo_agent_interval','seo_min_word_count',
+			'seo_title_min_length','seo_title_max_length',
+			'seo_meta_desc_min_length','seo_meta_desc_max_length',
+			'seo_slug_max_length',
 		];
 		foreach ( $number_fields as $key ) {
 			$clean[ $key ] = (string) absint( $raw[ $key ] ?? $current[ $key ] ?? 0 );

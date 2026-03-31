@@ -148,6 +148,11 @@ class Plugin {
 		// Trending topics autopilot
 		add_action( 'cep_trending_autopilot', [ Trending\TrendingAutopilot::class, 'run' ], 10, 0 );
 
+		// SEO Agent
+		if ( Settings::is_enabled( 'enable_seo_agent' ) ) {
+			add_action( 'cep_seo_analysis', [ Seo\SeoAgent::class, 'run' ], 10, 0 );
+		}
+
 		// Maintenance
 		add_action( 'cep_log_prune', [ Logger::class, 'prune' ], 10, 0 );
 	}

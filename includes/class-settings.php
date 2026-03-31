@@ -182,6 +182,17 @@ class Settings {
 		'trending_subreddits'          => '',
 		'trending_max_per_run'         => '5',
 		'trending_min_demand_score'    => '50',
+
+		// ── SEO Agent ─────────────────────────────────────────────────────────
+		'enable_seo_agent'             => '1',
+		'seo_agent_interval'           => '3',   // days between full scans
+		'seo_min_word_count'           => '300',
+		'seo_title_min_length'         => '30',
+		'seo_title_max_length'         => '60',
+		'seo_meta_desc_min_length'     => '100',
+		'seo_meta_desc_max_length'     => '160',
+		'seo_slug_max_length'          => '75',
+		'seo_auto_fix_enabled'         => '1',
 	];
 
 	/**
