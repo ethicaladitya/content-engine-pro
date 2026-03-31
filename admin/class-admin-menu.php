@@ -18,6 +18,9 @@ class AdminMenu {
 		add_action( 'admin_init', [ $this, 'handle_early_actions' ] );
 		add_action( 'admin_init', [ SourcesPage::class, 'handle_post' ] );
 
+		// Autopilot manual trigger (AJAX — keeps page alive, only button shows loading).
+		add_action( 'wp_ajax_cep_manual_trigger', [ $this, 'ajax_manual_trigger' ] );
+
 		// SEO Autopilot AJAX actions
 		add_action( 'wp_ajax_cep_seo_fix_issue',    [ $this, 'ajax_seo_fix' ] );
 		add_action( 'wp_ajax_cep_seo_ai_fix_issue', [ $this, 'ajax_seo_ai_fix' ] );
@@ -98,6 +101,24 @@ class AdminMenu {
 
 	public function render_logs(): void {
 		LogsPage::render();
+	}
+
+	// ─── Manual Pipeline Trigger (AJAX) ──────────────────────────────────────
+
+	public function ajax_manual_trigger(): void {
+		check_ajax_referer( 'cep_admin_nonce', 'nonce' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( [ 'message' => __( 'Insufficient permissions.', 'content-engine-pro' ) ] );
+		}
+
+		$trigger = sanitize_key( wp_unslash( $_POST['trigger'] ?? '' ) );
+		if ( '' === $trigger ) {
+			wp_send_json_error( [ 'message' => __( 'No trigger specified.', 'content-engine-pro' ) ] );
+		}
+
+		$message = AutopilotPage::run_trigger( $trigger );
+		wp_send_json_success( [ 'message' => $message ] );
 	}
 
 	// ─── SEO Autopilot AJAX ───────────────────────────────────────────────────
