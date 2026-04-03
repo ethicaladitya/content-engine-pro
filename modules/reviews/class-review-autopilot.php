@@ -196,7 +196,7 @@ Requirements:
 - Be specific — mention real features, real limitations, real use cases
 - If it's free, mention the free tier vs any paid plans
 - Do NOT fabricate version numbers or pricing you're not sure about
-- End with a clear verdict
+- IMPORTANT: Put the pros, cons, final rating, pricing, and verdict ONLY in their structured JSON fields. Do NOT append them to the `content` HTML string, as our template displays them separately.
 
 IMAGES — Insert 2–3 image placeholder comments at natural visual break points in the content (after the intro, after the features section, before the verdict). Use exactly this format:
   <!-- IMAGE_PLACEHOLDER -->

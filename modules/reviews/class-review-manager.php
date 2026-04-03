@@ -242,7 +242,7 @@ Product URL: {$url}
 Return a JSON object:
 {
   "title": "SEO-optimized review title",
-  "content": "full HTML review content (600-1000 words) with sections: Overview, Key Features, Pros & Cons, Verdict",
+  "content": "full HTML review content (600-1000 words) with sections: Overview, Key Features. Do NOT include Pros & Cons or Verdict in this HTML.",
   "excerpt": "2-sentence summary",
   "rating": 4.2,
   "pros": ["Pro 1", "Pro 2", "Pro 3"],
