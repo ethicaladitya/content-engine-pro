@@ -188,7 +188,31 @@ while ( have_posts() ) :
 
 	<!-- ── Full Review Content ── -->
 	<div class="cep-single-review__content entry-content" itemprop="reviewBody">
-		<?php the_content(); ?>
+		<?php
+		ob_start();
+		the_content();
+		$content = ob_get_clean();
+
+		// Clean up AI-generated duplicate metadata at the end of older posts
+		if ( $meta['verdict'] ) {
+			$strip_patterns = [
+				'/<h[234][^>]*>(?:The\s+|Our\s+)?Verdict<\/h[234]>[\s\S]*$/is',
+				'/<p[^>]*>\s*<strong[^>]*>(?:The\s+|Our\s+)?Verdict:?<\/strong>[\s\S]*$/is',
+				'/(?:<p[^>]*>|<div>)?\s*<strong[^>]*>Final Rating:<\/strong>[\s\S]*$/is',
+				'/(?:<p[^>]*>|<div>)?\s*<strong[^>]*>Pros:<\/strong>[\s\S]*$/is',
+				'/(?:<p[^>]*>|<div>)?\s*Final Rating:.*$/is',
+			];
+			foreach ( $strip_patterns as $pattern ) {
+				$new_content = preg_replace( $pattern, '', $content );
+				if ( $new_content !== $content ) {
+					$content = $new_content;
+					break;
+				}
+			}
+		}
+
+		echo $content;
+		?>
 	</div>
 
 	<!-- ── Verdict Box ── -->
