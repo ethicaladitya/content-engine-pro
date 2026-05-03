@@ -15,53 +15,22 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class ReviewManager {
 
-	private static function is_review_autopilot_enabled(): bool {
-		return Settings::is_enabled( 'review_autopilot_enabled' ) || Settings::is_enabled( 'enable_reviews_autopilot' );
-	}
-
-	private static function get_review_max_per_run(): int {
-		$max = (int) Settings::get( 'review_max_per_run', 0 );
-		if ( $max > 0 ) {
-			return $max;
-		}
-		return (int) Settings::get( 'reviews_max_per_run', 3 );
-	}
-
 	public static function run_discovery(): void {
-		if ( ! self::is_review_autopilot_enabled() ) {
+		if ( ! Settings::is_enabled( 'enable_reviews_autopilot' ) ) {
 			return;
 		}
-		if ( ! Settings::is_enabled( 'enable_reviews' ) || ! Settings::is_enabled( 'reviews_cpt_enabled' ) ) {
-			return;
-		}
-		Logger::log(
-			'Review manager discovery run started',
-			'info',
-			'reviews',
-			[ 'post_type' => Settings::get( 'reviews_cpt_slug', 'review' ) ]
-		);
+		Logger::log( 'Running review discovery', 'info', 'reviews' );
 		do_action( 'cep_reviews_run_discovery' );
 	}
 
 	public static function run_generation(): void {
-		if ( ! self::is_review_autopilot_enabled() ) {
-			return;
-		}
-		if ( ! Settings::is_enabled( 'enable_reviews' ) || ! Settings::is_enabled( 'reviews_cpt_enabled' ) ) {
+		if ( ! Settings::is_enabled( 'enable_reviews_autopilot' ) ) {
 			return;
 		}
 
 		global $wpdb;
-		$max    = self::get_review_max_per_run();
+		$max    = (int) Settings::get( 'reviews_max_per_run', 3 );
 		$table  = $wpdb->prefix . 'cep_reviews';
-		$cpt    = Settings::get( 'reviews_cpt_slug', 'review' );
-
-		Logger::log(
-			'Review manager generation run started',
-			'info',
-			'reviews',
-			[ 'post_type' => $cpt, 'max_per_run' => $max ]
-		);
 
 		// Find reviews that need to be generated (have wp_post_id = 0)
 		$pending = $wpdb->get_results(
@@ -83,23 +52,12 @@ class ReviewManager {
 	}
 
 	public static function run_updates(): void {
-		if ( ! self::is_review_autopilot_enabled() ) {
-			return;
-		}
-		if ( ! Settings::is_enabled( 'enable_reviews' ) || ! Settings::is_enabled( 'reviews_cpt_enabled' ) ) {
+		if ( ! Settings::is_enabled( 'enable_reviews_autopilot' ) ) {
 			return;
 		}
 
 		global $wpdb;
 		$table = $wpdb->prefix . 'cep_reviews';
-		$cpt   = Settings::get( 'reviews_cpt_slug', 'review' );
-
-		Logger::log(
-			'Review manager update run started',
-			'info',
-			'reviews',
-			[ 'post_type' => $cpt ]
-		);
 
 		// Reviews that haven't been verified in > 30 days
 		$stale = $wpdb->get_results(
@@ -112,8 +70,6 @@ class ReviewManager {
 		foreach ( $stale as $review ) {
 			self::update_review( $review );
 		}
-
-		Logger::log( 'Review manager update run complete', 'info', 'reviews', [ 'post_type' => $cpt, 'updated_count' => count( $stale ) ] );
 	}
 
 	/**
@@ -286,7 +242,7 @@ Product URL: {$url}
 Return a JSON object:
 {
   "title": "SEO-optimized review title",
-  "content": "full HTML review content (600-1000 words) with sections: Overview, Key Features, Pros & Cons, Verdict",
+  "content": "full HTML review content (600-1000 words) with sections: Overview, Key Features. Do NOT include Pros & Cons or Verdict in this HTML.",
   "excerpt": "2-sentence summary",
   "rating": 4.2,
   "pros": ["Pro 1", "Pro 2", "Pro 3"],

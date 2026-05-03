@@ -26,10 +26,25 @@ class ReviewDiscoverer {
 		if ( ! Settings::is_enabled( 'review_autopilot_enabled' ) ) {
 			return;
 		}
+		if ( ! Settings::is_enabled( 'enable_reviews' ) || ! Settings::is_enabled( 'reviews_cpt_enabled' ) ) {
+			return;
+		}
 
 		$niche         = NicheManager::get_active();
 		$sources       = $niche['review_sources'];
 		$max_per_run   = (int) Settings::get( 'review_discovery_max_per_run', 20 );
+		$reviews_cpt   = Settings::get( 'reviews_cpt_slug', 'review' );
+
+		Logger::log(
+			'Review discoverer run started',
+			'info',
+			'review_discoverer',
+			[
+				'post_type'    => $reviews_cpt,
+				'max_per_run'  => $max_per_run,
+				'source_count' => count( $sources ),
+			]
+		);
 
 		if ( empty( $sources ) ) {
 			Logger::log( 'Review discoverer: no sources configured', 'info', 'review_discoverer' );

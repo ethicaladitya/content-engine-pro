@@ -19,20 +19,26 @@ class CptManager {
 		$primary_slug = Settings::get( 'primary_cpt_slug', 'post' );
 		if ( 'post' !== $primary_slug ) {
 			self::register_primary_cpt();
+			Logger::log( "Registered primary post type: {$primary_slug}", 'debug', 'cpt_manager', [ 'post_type' => $primary_slug ] );
+		} else {
+			Logger::log( 'Primary post type uses built-in post', 'debug', 'cpt_manager', [ 'post_type' => 'post' ] );
 		}
 
 		if ( Settings::is_enabled( 'reviews_cpt_enabled' ) ) {
 			self::register_reviews_cpt();
 			self::register_reviews_taxonomy();
+			Logger::log( 'Registered reviews post type', 'debug', 'cpt_manager', [ 'post_type' => Settings::get( 'reviews_cpt_slug', 'review' ) ] );
 		}
 
 		// Provider CPT is always registered — the affiliate system depends on it for data storage.
 		// The providers_cpt_enabled setting may be off, but the CPT must exist or the admin
 		// "Manage Providers" link returns "Invalid post type."
 		self::register_providers_cpt();
+		Logger::log( 'Registered providers post type', 'debug', 'cpt_manager', [ 'post_type' => Settings::get( 'providers_cpt_slug', 'provider' ) ] );
 
 		if ( Settings::is_enabled( 'jobs_cpt_enabled' ) ) {
 			self::register_jobs_cpt();
+			Logger::log( 'Registered jobs post type', 'debug', 'cpt_manager', [ 'post_type' => Settings::get( 'jobs_cpt_slug', 'job' ) ] );
 		}
 
 		do_action( 'cep_register_post_types' );

@@ -14,16 +14,16 @@ class Deactivator {
 			'cep_crawl_midday',
 			'cep_crawl_evening',
 			'cep_crawl_weekly',
+			'cep_article_autopilot',
 			'cep_reviews_discover',
 			'cep_reviews_generate',
 			'cep_reviews_update',
+			'cep_jobs_aggregate',
+			'cep_trending_autopilot',
 			'cep_log_prune',
 		];
 		foreach ( $hooks as $hook ) {
-			$timestamp = wp_next_scheduled( $hook );
-			if ( $timestamp ) {
-				wp_unschedule_event( $timestamp, $hook );
-			}
+			wp_clear_scheduled_hook( $hook );
 		}
 		flush_rewrite_rules();
 	}

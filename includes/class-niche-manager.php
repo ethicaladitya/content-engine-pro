@@ -38,8 +38,10 @@ class NicheManager {
 				'https://torquemag.io/feed/',
 			],
 			'job_sources'        => [
-				'https://wphired.com/feed/',
 				'https://jobs.wordpress.net/feed/',
+				'https://wpremotework.com/feed/',
+				'https://remoteok.com/remote-wordpress-jobs.rss',
+				'https://weworkremotely.com/categories/remote-full-stack-programming-jobs.rss',
 			],
 			'article_sources'    => [
 				'https://wordpress.org/news/feed/',

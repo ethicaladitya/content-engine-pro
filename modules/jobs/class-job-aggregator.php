@@ -29,6 +29,10 @@ class JobAggregator {
 			return;
 		}
 
+		if ( ! Settings::is_enabled( 'enable_jobs' ) ) {
+			return;
+		}
+
 		if ( ! Settings::is_enabled( 'jobs_cpt_enabled' ) ) {
 			return;
 		}
@@ -37,6 +41,19 @@ class JobAggregator {
 		$sources    = $niche['job_sources'];
 		$max        = (int) Settings::get( 'jobs_max_per_run', 10 );
 		$dedup_days = (int) Settings::get( 'jobs_dedup_days', 30 );
+		$jobs_cpt   = Settings::get( 'jobs_cpt_slug', 'job' );
+
+		Logger::log(
+			'Job aggregator run started',
+			'info',
+			'job_aggregator',
+			[
+				'post_type'    => $jobs_cpt,
+				'max_per_run'  => $max,
+				'dedup_days'   => $dedup_days,
+				'source_count' => count( $sources ),
+			]
+		);
 
 		if ( empty( $sources ) ) {
 			Logger::log( 'Job aggregator: no job sources configured', 'info', 'job_aggregator' );
@@ -189,7 +206,7 @@ class JobAggregator {
 
 		$new = [];
 		foreach ( $listings as $listing ) {
-			// Check jobs_raw table
+			// Primary dedup: hash seen within dedup window
 			$exists = $wpdb->get_var( $wpdb->prepare(
 				"SELECT id FROM {$table} WHERE content_hash = %s AND discovered_at > %s",
 				$listing['hash'],
@@ -199,15 +216,12 @@ class JobAggregator {
 				continue;
 			}
 
-			// Check if post already exists (by slug)
-			$slug = sanitize_title( $listing['title'] );
-			$post_exists = get_posts( [
-				'post_type'   => $jobs_cpt,
-				'name'        => $slug,
-				'numberposts' => 1,
-				'post_status' => 'any',
-			] );
-			if ( ! empty( $post_exists ) ) {
+			// Secondary dedup: same source URL already in raw table (URL changed but same listing)
+			$url_exists = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM {$table} WHERE job_url = %s",
+				$listing['url']
+			) );
+			if ( $url_exists ) {
 				continue;
 			}
 

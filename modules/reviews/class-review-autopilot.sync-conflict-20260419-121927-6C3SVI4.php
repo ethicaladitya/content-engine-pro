@@ -24,16 +24,10 @@ class ReviewAutopilot {
 		if ( ! Settings::is_enabled( 'review_autopilot_enabled' ) ) {
 			return;
 		}
-		if ( ! Settings::is_enabled( 'enable_reviews' ) || ! Settings::is_enabled( 'reviews_cpt_enabled' ) ) {
-			return;
-		}
 
 		global $wpdb;
 		$table   = $wpdb->prefix . 'cep_product_discovery';
 		$max     = (int) Settings::get( 'review_max_per_run', 3 );
-		$cpt     = Settings::get( 'reviews_cpt_slug', 'review' );
-
-		Logger::log( 'Review autopilot run started', 'info', 'review_autopilot', [ 'post_type' => $cpt, 'max_per_run' => $max ] );
 
 		$products = $wpdb->get_results(
 			$wpdb->prepare(
@@ -202,7 +196,7 @@ Requirements:
 - Be specific — mention real features, real limitations, real use cases
 - If it's free, mention the free tier vs any paid plans
 - Do NOT fabricate version numbers or pricing you're not sure about
-- End with a clear verdict
+- IMPORTANT: Put the pros, cons, final rating, pricing, and verdict ONLY in their structured JSON fields. Do NOT append them to the `content` HTML string, as our template displays them separately.
 
 IMAGES — Insert 2–3 image placeholder comments at natural visual break points in the content (after the intro, after the features section, before the verdict). Use exactly this format:
   <!-- IMAGE_PLACEHOLDER -->
