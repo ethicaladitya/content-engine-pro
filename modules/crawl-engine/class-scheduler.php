@@ -26,17 +26,17 @@ class Scheduler {
 	}
 
 	public static function schedule_all(): void {
-		if ( ! Settings::is_enabled( 'enable_crawling' ) ) {
-			return;
-		}
-
 		$events = [
-			[ 'hook' => 'cep_crawl_morning',  'recurrence' => 'daily',      'start_offset' => 7 * HOUR_IN_SECONDS ],
-			[ 'hook' => 'cep_crawl_midday',   'recurrence' => 'daily',      'start_offset' => 12 * HOUR_IN_SECONDS ],
-			[ 'hook' => 'cep_crawl_evening',  'recurrence' => 'daily',      'start_offset' => 19 * HOUR_IN_SECONDS ],
-			[ 'hook' => 'cep_crawl_weekly',   'recurrence' => 'weekly',     'start_offset' => 24 * HOUR_IN_SECONDS ],
-			[ 'hook' => 'cep_log_prune',      'recurrence' => 'daily',      'start_offset' => 3 * HOUR_IN_SECONDS ],
+			[ 'hook' => 'cep_log_prune', 'recurrence' => 'daily', 'start_offset' => 3 * HOUR_IN_SECONDS ],
 		];
+
+		// Crawl windows are controlled independently from autopilot modules.
+		if ( Settings::is_enabled( 'enable_crawling' ) ) {
+			$events[] = [ 'hook' => 'cep_crawl_morning', 'recurrence' => 'daily',  'start_offset' => 7 * HOUR_IN_SECONDS ];
+			$events[] = [ 'hook' => 'cep_crawl_midday',  'recurrence' => 'daily',  'start_offset' => 12 * HOUR_IN_SECONDS ];
+			$events[] = [ 'hook' => 'cep_crawl_evening', 'recurrence' => 'daily',  'start_offset' => 19 * HOUR_IN_SECONDS ];
+			$events[] = [ 'hook' => 'cep_crawl_weekly',  'recurrence' => 'weekly', 'start_offset' => 24 * HOUR_IN_SECONDS ];
+		}
 
 		// Article autopilot — runs once daily after crawl has fresh content
 		if ( Settings::is_enabled( 'article_autopilot_enabled' ) ) {
@@ -51,7 +51,11 @@ class Scheduler {
 		}
 
 		// Jobs autopilot
-		if ( Settings::is_enabled( 'jobs_cpt_enabled' ) && Settings::is_enabled( 'jobs_autopilot_enabled' ) ) {
+		if (
+			Settings::is_enabled( 'jobs_autopilot_enabled' )
+			&& Settings::is_enabled( 'jobs_cpt_enabled' )
+			&& Settings::is_enabled( 'enable_jobs' )
+		) {
 			$events[] = [ 'hook' => 'cep_jobs_aggregate', 'recurrence' => 'twicedaily', 'start_offset' => 1 * HOUR_IN_SECONDS ];
 		}
 

@@ -19,6 +19,11 @@ class ReviewsPage {
 		$total     = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table" );
 		$generated = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $table WHERE ai_generated = 1" );
 		$recent    = $wpdb->get_results( "SELECT * FROM $table ORDER BY created_at DESC LIMIT 10", ARRAY_A );
+		$autopilot_enabled = Settings::is_enabled( 'review_autopilot_enabled' ) || Settings::is_enabled( 'enable_reviews_autopilot' );
+		$max_per_run = (int) Settings::get( 'review_max_per_run', 0 );
+		if ( $max_per_run <= 0 ) {
+			$max_per_run = (int) Settings::get( 'reviews_max_per_run', 3 );
+		}
 		?>
 		<div class="wrap cep-wrap">
 			<div class="cep-page-header">
@@ -41,7 +46,7 @@ class ReviewsPage {
 				</div>
 				<div class="cep-stat-card cep-stat-card--purple">
 					<div class="cep-stat-body">
-						<div class="cep-stat-value"><?php echo cep_is_enabled( 'enable_reviews_autopilot' ) ? 'ON' : 'OFF'; ?></div>
+						<div class="cep-stat-value"><?php echo $autopilot_enabled ? 'ON' : 'OFF'; ?></div>
 						<div class="cep-stat-label">Autopilot</div>
 					</div>
 				</div>
@@ -50,8 +55,8 @@ class ReviewsPage {
 			<div class="cep-card" style="margin-top:20px">
 				<div class="cep-card-header"><h3>Settings</h3></div>
 				<div class="cep-card-body cep-kv-list">
-					<div class="cep-kv"><span>Max per cron run</span><strong><?php echo esc_html( Settings::get( 'reviews_max_per_run' ) ); ?></strong></div>
-					<div class="cep-kv"><span>Autopilot</span><strong><?php echo cep_is_enabled( 'enable_reviews_autopilot' ) ? 'Enabled' : 'Disabled'; ?></strong></div>
+					<div class="cep-kv"><span>Max per cron run</span><strong><?php echo esc_html( $max_per_run ); ?></strong></div>
+					<div class="cep-kv"><span>Autopilot</span><strong><?php echo $autopilot_enabled ? 'Enabled' : 'Disabled'; ?></strong></div>
 					<div class="cep-kv"><span>AI Model</span><strong><?php echo esc_html( Settings::get( 'ai_model' ) ); ?></strong></div>
 				</div>
 				<div class="cep-card-footer">

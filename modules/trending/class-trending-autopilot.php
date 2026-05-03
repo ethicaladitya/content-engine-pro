@@ -50,7 +50,22 @@ class TrendingAutopilot {
 			return;
 		}
 
+		$target_post_type = Settings::get( 'primary_cpt_slug', 'post' );
+		$source_list      = (string) Settings::get( 'trending_sources', 'google_trends,google_news' );
+		$source_count     = count( array_filter( array_map( 'trim', explode( ',', $source_list ) ) ) );
+		$max_per_run      = (int) Settings::get( 'trending_max_per_run', 5 );
+
 		Logger::log( 'Trending autopilot: starting run', 'info', 'trending' );
+		Logger::log(
+			'Trending autopilot run started',
+			'info',
+			'trending',
+			[
+				'target_post_type' => $target_post_type,
+				'source_count'     => $source_count,
+				'max_per_run'      => $max_per_run,
+			]
+		);
 
 		do_action( 'cep_before_trending_autopilot' );
 
@@ -203,7 +218,7 @@ class TrendingAutopilot {
 			return false;
 		}
 
-		$primary_url = $news_urls[0];
+		$primary_url = substr( $news_urls[0], 0, 500 );
 
 		// Dedup check: same canonical_url already in raw_content?
 		$raw_exists = $wpdb->get_var(
@@ -263,7 +278,7 @@ class TrendingAutopilot {
 		);
 
 		if ( ! $inserted ) {
-			Logger::log( "Trending: failed to insert raw_content for '{$topic_text}'", 'error', 'trending' );
+			Logger::log( "Trending: failed to insert raw_content for '{$topic_text}': " . $wpdb->last_error, 'error', 'trending' );
 			return false;
 		}
 

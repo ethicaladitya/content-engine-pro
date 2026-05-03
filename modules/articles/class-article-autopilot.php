@@ -30,6 +30,15 @@ class ArticleAutopilot {
 		global $wpdb;
 		$raw_table = $wpdb->prefix . 'cep_raw_content';
 		$max       = (int) Settings::get( 'article_max_per_run', 3 );
+		$post_type = Settings::get( 'primary_cpt_slug', 'post' );
+		$pending   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$raw_table} WHERE status = 'pending'" );
+
+		Logger::log(
+			'Article autopilot run started',
+			'info',
+			'article_autopilot',
+			[ 'post_type' => $post_type, 'max_per_run' => $max, 'pending_queue' => $pending ]
+		);
 
 		do_action( 'cep_before_article_autopilot' );
 
