@@ -231,6 +231,15 @@ class SettingsPage {
 		</div>
 
 		<div class="cep-section">
+			<h2 class="cep-section-title">Built-in Theme</h2>
+			<p class="cep-section-desc">Requires the <strong>Content Engine Theme</strong> companion plugin to be installed and active.</p>
+			<?php
+			$this->field_toggle( 'content_engine_use_builtin_theme', 'Enable Built-in Theme', $s['content_engine_use_builtin_theme'] ?? '0', 'When enabled, Content Engine pages use the built-in theme instead of your active WordPress theme.' );
+			$this->field_toggle( 'content_engine_use_homepage', 'Use Content Engine Homepage', $s['content_engine_use_homepage'] ?? '0', 'When enabled, intercepts the site front page and renders a full marketing homepage.' );
+			?>
+		</div>
+
+		<div class="cep-section">
 			<h2 class="cep-section-title">Image Sizes</h2>
 			<p class="cep-section-desc">Registered thumbnail sizes. Requires media regeneration after change.</p>
 			<div class="cep-row cep-row--inline">
@@ -595,7 +604,7 @@ class SettingsPage {
 		$tab_toggles = [
 			'general'  => [],
 			'content'  => [ 'reviews_cpt_enabled', 'providers_cpt_enabled', 'jobs_cpt_enabled' ],
-			'display'  => [ 'show_author', 'show_date', 'show_category', 'show_read_time' ],
+			'display'  => [ 'show_author', 'show_date', 'show_category', 'show_read_time', 'content_engine_use_builtin_theme', 'content_engine_use_homepage' ],
 			'ai'       => [],
 			'features' => [
 				'enable_crawling', 'enable_ai_publishing', 'enable_reviews',

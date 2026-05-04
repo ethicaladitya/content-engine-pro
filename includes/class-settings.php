@@ -174,7 +174,9 @@ class Settings {
 		// ── Web Research ─────────────────────────────────────────────────────
 		'research_timeout'             => '20',
 		'research_max_text_chars'      => '8000',    // max chars extracted per page
-
+		// ── Built-in Theme ──────────────────────────────────────────────────────
+		'content_engine_use_builtin_theme' => '0',
+		'content_engine_use_homepage'      => '0',
 		// ── Trending Topics Autopilot ─────────────────────────────────────────
 		'trending_autopilot_enabled'   => '0',
 		'trending_sources'             => 'google_trends,google_news',
