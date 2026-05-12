@@ -8,7 +8,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Injects JSON-LD schema markup for articles, reviews, and other content types.
+ * Injects JSON-LD schema markup and, as a fallback, meta/OG tags.
+ *
+ * Responsibility split:
+ *  - inject_schema()   : Review CPT only. All other post types are handled by the
+ *                        active SEO plugin (Yoast, RankMath, SmartCrawl, etc.) or
+ *                        by seo-agent-ai for BlogPosting / FAQPage.
+ *  - inject_seo_meta() : Fallback meta/OG/Twitter output only when no SEO plugin
+ *                        is active. When any SEO plugin is present this method
+ *                        returns immediately to avoid duplicate tags.
  */
 class SchemaInjector {
 
@@ -20,6 +28,54 @@ class SchemaInjector {
 		}
 	}
 
+	// -------------------------------------------------------------------
+	// SEO plugin detection
+	// -------------------------------------------------------------------
+
+	/**
+	 * Returns the slug of the first active SEO plugin found, or empty string.
+	 *
+	 * Covers: Yoast SEO, RankMath, SmartCrawl (WPMU DEV), All in One SEO,
+	 * SEOPress, and The SEO Framework.
+	 */
+	private function active_seo_plugin(): string {
+		if ( defined( 'WPSEO_VERSION' ) || class_exists( 'WPSEO_Frontend', false ) ) {
+			return 'yoast';
+		}
+		if ( defined( 'RANK_MATH_VERSION' ) || class_exists( 'RankMath', false ) ) {
+			return 'rankmath';
+		}
+		if (
+			defined( 'SMARTCRAWL_VERSION' )
+			|| class_exists( 'SmartCrawl_Settings', false )
+			|| class_exists( 'Smartcrawl\\Smartcrawl', false )
+		) {
+			return 'smartcrawl';
+		}
+		if (
+			defined( 'AIOSEO_VERSION' )
+			|| class_exists( 'AIOSEO\\Plugin\\AIOSEO', false )
+			|| function_exists( 'aioseo' )
+		) {
+			return 'aioseo';
+		}
+		if ( defined( 'SEOPRESS_VERSION' ) || class_exists( 'SeoPress_Admin_Pages', false ) ) {
+			return 'seopress';
+		}
+		if ( function_exists( 'the_seo_framework' ) || class_exists( 'The_SEO_Framework\\Load', false ) ) {
+			return 'seoframework';
+		}
+		return '';
+	}
+
+	private function has_active_seo_plugin(): bool {
+		return $this->active_seo_plugin() !== '';
+	}
+
+	// -------------------------------------------------------------------
+	// Schema injection
+	// -------------------------------------------------------------------
+
 	public function inject_schema(): void {
 		if ( ! is_singular() ) {
 			return;
@@ -30,12 +86,13 @@ class SchemaInjector {
 		$post_type   = get_post_type( $post_id );
 		$reviews_cpt = Settings::get( 'reviews_cpt_slug', 'review' );
 
-		if ( $post_type === $reviews_cpt ) {
-			$schema = $this->build_review_schema( $post );
-		} else {
-			$schema = $this->build_article_schema( $post );
+		// Only inject schema for the reviews CPT — no SEO plugin auto-generates
+		// Review + ReviewRating schema. Everything else is handled upstream.
+		if ( $post_type !== $reviews_cpt ) {
+			return;
 		}
 
+		$schema = $this->build_review_schema( $post );
 		$schema = apply_filters( 'cep_schema_data', $schema, $post_id, $post_type );
 
 		if ( empty( $schema ) ) {
@@ -45,49 +102,16 @@ class SchemaInjector {
 		echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
 	}
 
-	private function build_article_schema( \WP_Post $post ): array {
-		$article_type = get_post_meta( $post->ID, '_cep_article_type', true ) ?: 'Article';
-		$brand        = Settings::get( 'brand_name', get_bloginfo( 'name' ) );
-
-		$schema = [
-			'@context'         => 'https://schema.org',
-			'@type'            => $article_type,
-			'headline'         => get_the_title( $post->ID ),
-			'description'      => get_the_excerpt( $post ),
-			'url'              => get_permalink( $post->ID ),
-			'datePublished'    => get_the_date( 'c', $post->ID ),
-			'dateModified'     => get_the_modified_date( 'c', $post->ID ),
-			'author'           => [
-				'@type' => 'Organization',
-				'name'  => esc_html( $brand ),
-			],
-			'publisher'        => [
-				'@type' => 'Organization',
-				'name'  => esc_html( $brand ),
-				'url'   => home_url( '/' ),
-			],
-		];
-
-		if ( has_post_thumbnail( $post->ID ) ) {
-			$img_id = get_post_thumbnail_id( $post->ID );
-			$img    = wp_get_attachment_image_src( $img_id, 'full' );
-			if ( $img ) {
-				$schema['image'] = [
-					'@type'  => 'ImageObject',
-					'url'    => $img[0],
-					'width'  => $img[1],
-					'height' => $img[2],
-				];
-			}
-		}
-
-		return $schema;
-	}
+	// -------------------------------------------------------------------
+	// Schema builders
+	// -------------------------------------------------------------------
 
 	private function build_review_schema( \WP_Post $post ): array {
+		$author_id   = (int) $post->post_author;
+		$author_name = get_the_author_meta( 'display_name', $author_id )
+			?: Settings::get( 'brand_name', get_bloginfo( 'name' ) );
 		$rating      = (float) get_post_meta( $post->ID, '_cep_review_star_rating', true );
 		$product_url = get_post_meta( $post->ID, '_cep_review_product_url', true );
-		$brand       = Settings::get( 'brand_name', get_bloginfo( 'name' ) );
 
 		return [
 			'@context'     => 'https://schema.org',
@@ -96,8 +120,9 @@ class SchemaInjector {
 			'url'          => get_permalink( $post->ID ),
 			'datePublished'=> get_the_date( 'c', $post->ID ),
 			'author'       => [
-				'@type' => 'Organization',
-				'name'  => esc_html( $brand ),
+				'@type' => 'Person',
+				'name'  => esc_html( $author_name ),
+				'url'   => get_author_posts_url( $author_id ),
 			],
 			'reviewRating' => [
 				'@type'       => 'Rating',
@@ -113,13 +138,23 @@ class SchemaInjector {
 		];
 	}
 
+	// -------------------------------------------------------------------
+	// Fallback meta / OG / Twitter (only when no SEO plugin is active)
+	// -------------------------------------------------------------------
+
 	public function inject_seo_meta(): void {
+		// All major SEO plugins handle meta description, OG, and Twitter Card tags.
+		// When any of them is active we return early to avoid duplicate output.
+		if ( $this->has_active_seo_plugin() ) {
+			return;
+		}
+
 		if ( ! is_singular() ) {
 			return;
 		}
 
 		$post_id     = get_the_ID();
-		$description = get_the_excerpt( $post_id );
+		$description = wp_trim_words( get_the_excerpt( $post_id ), 30 );
 		$title       = get_the_title( $post_id );
 		$url         = get_permalink( $post_id );
 		$image       = '';
@@ -129,23 +164,21 @@ class SchemaInjector {
 			$image = $img ? $img[0] : '';
 		}
 
-		if ( $description ) :
-			echo '<meta name="description" content="' . esc_attr( wp_trim_words( $description, 30 ) ) . '" />' . "\n";
-		endif;
-
-		// OpenGraph
-		echo '<meta property="og:type" content="article" />' . "\n";
-		echo '<meta property="og:title" content="' . esc_attr( $title ) . '" />' . "\n";
-		echo '<meta property="og:url" content="' . esc_url( $url ) . '" />' . "\n";
 		if ( $description ) {
-			echo '<meta property="og:description" content="' . esc_attr( wp_trim_words( $description, 30 ) ) . '" />' . "\n";
+			echo '<meta name="description" content="' . esc_attr( $description ) . '" />' . "\n";
+		}
+
+		echo '<meta property="og:type"  content="article" />' . "\n";
+		echo '<meta property="og:title" content="' . esc_attr( $title ) . '" />' . "\n";
+		echo '<meta property="og:url"   content="' . esc_url( $url ) . '" />' . "\n";
+		if ( $description ) {
+			echo '<meta property="og:description" content="' . esc_attr( $description ) . '" />' . "\n";
 		}
 		if ( $image ) {
 			echo '<meta property="og:image" content="' . esc_url( $image ) . '" />' . "\n";
 		}
 
-		// Twitter Card
-		echo '<meta name="twitter:card" content="summary_large_image" />' . "\n";
+		echo '<meta name="twitter:card"  content="summary_large_image" />' . "\n";
 		echo '<meta name="twitter:title" content="' . esc_attr( $title ) . '" />' . "\n";
 		if ( $image ) {
 			echo '<meta name="twitter:image" content="' . esc_url( $image ) . '" />' . "\n";

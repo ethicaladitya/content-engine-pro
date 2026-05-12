@@ -97,10 +97,71 @@ class Publisher {
 			[ '%d' ]
 		);
 
+		// Write SEO meta into any active SEO plugin so it controls title/desc output.
+		self::write_seo_meta( $post_id, $data, $raw_content );
+
 		Logger::log( "Published post #{$post_id}: {$data['title']}", 'info', 'publisher' );
 		do_action( 'cep_after_publish', $post_id, $raw_content );
 
 		return $post_id;
+	}
+
+
+	/**
+	 * Write SEO title, description, and focus keyword into whichever SEO plugin is active.
+	 * Called immediately after a post is published so the SEO plugin controls all output.
+	 *
+	 * @param int   $post_id
+	 * @param array $data        AI response data (title, excerpt, category).
+	 * @param array $raw_content Source item (title used as initial keyword).
+	 */
+	private static function write_seo_meta( int $post_id, array $data, array $raw_content ): void {
+		$title   = sanitize_text_field( $data['title']    ?? '' );
+		$desc    = sanitize_textarea_field( $data['excerpt'] ?? '' );
+		$keyword = sanitize_text_field( $raw_content['title'] ?? $data['category'] ?? '' );
+
+		// SmartCrawl (WPMU DEV)
+		if ( defined( 'SMARTCRAWL_VERSION' )
+			|| class_exists( 'SmartCrawl_Settings', false )
+			|| class_exists( 'Smartcrawl\Smartcrawl', false ) ) {
+			update_post_meta( $post_id, '_wds_title',          $title );
+			update_post_meta( $post_id, '_wds_metadesc',       $desc );
+			update_post_meta( $post_id, '_wds_focus-keywords', $keyword );
+		}
+
+		// Yoast SEO
+		if ( defined( 'WPSEO_VERSION' ) ) {
+			update_post_meta( $post_id, '_yoast_wpseo_title',    $title );
+			update_post_meta( $post_id, '_yoast_wpseo_metadesc', $desc );
+			update_post_meta( $post_id, '_yoast_wpseo_focuskw',  $keyword );
+		}
+
+		// RankMath
+		if ( defined( 'RANK_MATH_VERSION' ) ) {
+			update_post_meta( $post_id, 'rank_math_title',         $title );
+			update_post_meta( $post_id, 'rank_math_description',   $desc );
+			update_post_meta( $post_id, 'rank_math_focus_keyword', $keyword );
+		}
+
+		// All in One SEO
+		if ( defined( 'AIOSEO_VERSION' ) || function_exists( 'aioseo' ) ) {
+			update_post_meta( $post_id, '_aioseo_title',       $title );
+			update_post_meta( $post_id, '_aioseo_description', $desc );
+			update_post_meta( $post_id, '_aioseo_keywords',    $keyword );
+		}
+
+		// SEOPress
+		if ( defined( 'SEOPRESS_VERSION' ) || class_exists( 'SeoPress_Admin_Pages', false ) ) {
+			update_post_meta( $post_id, '_seopress_titles_title',        $title );
+			update_post_meta( $post_id, '_seopress_titles_desc',         $desc );
+			update_post_meta( $post_id, '_seopress_analysis_target_kw', $keyword );
+		}
+
+		// The SEO Framework
+		if ( function_exists( 'the_seo_framework' ) || class_exists( 'The_SEO_Framework\\Load', false ) ) {
+			update_post_meta( $post_id, '_genesis_title',       $title );
+			update_post_meta( $post_id, '_genesis_description', $desc );
+		}
 	}
 
 	private static function build_prompt( array $raw_content ): string {
