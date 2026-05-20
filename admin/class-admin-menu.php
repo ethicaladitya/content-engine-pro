@@ -68,6 +68,9 @@ class AdminMenu {
 		add_submenu_page( 'cep-dashboard', 'Affiliates', 'Affiliates', 'manage_options', 'cep-affiliates', [ $this, 'render_affiliates' ] );
 		add_submenu_page( 'cep-dashboard', 'Logs', 'Logs', 'manage_options', 'cep-logs', [ $this, 'render_logs' ] );
 		add_submenu_page( 'cep-dashboard', 'SEO Agent', 'SEO Agent', 'manage_options', 'cep-seo-agent', [ $this, 'render_seo_agent' ] );
+		if ( Settings::is_enabled( 'deals_enabled' ) ) {
+			add_submenu_page( 'cep-dashboard', '🏷️ Deals', '🏷️ Deals', 'manage_options', 'cep-deals', [ $this, 'render_deals' ] );
+		}
 		add_submenu_page( 'cep-dashboard', 'Settings', 'Settings', 'manage_options', 'cep-settings', [ new SettingsPage(), 'render' ] );
 	}
 
@@ -125,5 +128,9 @@ class AdminMenu {
 
 	public function render_seo_agent(): void {
 		SeoAgentPage::render();
+	}
+
+	public function render_deals(): void {
+		( new DealsPage() )->render();
 	}
 }

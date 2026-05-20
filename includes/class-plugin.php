@@ -121,6 +121,11 @@ class Plugin {
 		add_action( 'add_meta_boxes', [ Admin\MetaBoxes::class, 'register' ] );
 		add_action( 'save_post', [ Admin\MetaBoxes::class, 'save' ], 10, 2 );
 
+		// Deals module
+		if ( Settings::is_enabled( 'deals_enabled' ) ) {
+			add_action( 'wp_head', [ Publisher\SchemaInjector::class, 'inject_deal_schema_static' ], 6 );
+		}
+
 		do_action( 'cep_modules_booted' );
 	}
 
@@ -158,6 +163,13 @@ class Plugin {
 		// SEO Agent
 		if ( Settings::is_enabled( 'enable_seo_agent' ) ) {
 			add_action( 'cep_seo_analysis', [ Seo\SeoAgent::class, 'run' ], 10, 0 );
+		}
+
+		// Deals autopilot
+		if ( Settings::is_enabled( 'deals_enabled' ) ) {
+			add_action( 'cep_deals_discover', [ Deals\DealDiscoverer::class, 'run' ], 10, 0 );
+			add_action( 'cep_deals_generate', [ Deals\DealAutopilot::class,   'run' ], 10, 0 );
+			add_action( 'cep_deals_monitor',  [ Deals\DealMonitor::class,     'run' ], 10, 0 );
 		}
 
 		// Maintenance

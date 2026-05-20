@@ -76,6 +76,13 @@ class Scheduler {
 			$events[] = [ 'hook' => 'cep_seo_analysis', 'recurrence' => 'every_three_days', 'start_offset' => 6 * HOUR_IN_SECONDS ];
 		}
 
+		// Deals engine
+		if ( Settings::is_enabled( 'deals_enabled' ) && Settings::is_enabled( 'deals_autopilot_enabled' ) ) {
+			$events[] = [ 'hook' => 'cep_deals_discover', 'recurrence' => 'twicedaily', 'start_offset' => 30 * MINUTE_IN_SECONDS ];
+			$events[] = [ 'hook' => 'cep_deals_generate', 'recurrence' => 'twicedaily', 'start_offset' => 2 * HOUR_IN_SECONDS ];
+			$events[] = [ 'hook' => 'cep_deals_monitor',  'recurrence' => 'daily',      'start_offset' => 4 * HOUR_IN_SECONDS ];
+		}
+
 		foreach ( $events as $event ) {
 			if ( ! wp_next_scheduled( $event['hook'] ) ) {
 				wp_schedule_event(

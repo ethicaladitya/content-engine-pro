@@ -31,14 +31,19 @@ class CptManager {
 		}
 
 		// Provider CPT is always registered — the affiliate system depends on it for data storage.
-		// The providers_cpt_enabled setting may be off, but the CPT must exist or the admin
-		// "Manage Providers" link returns "Invalid post type."
 		self::register_providers_cpt();
 		Logger::log( 'Registered providers post type', 'debug', 'cpt_manager', [ 'post_type' => Settings::get( 'providers_cpt_slug', 'provider' ) ] );
 
 		if ( Settings::is_enabled( 'jobs_cpt_enabled' ) ) {
 			self::register_jobs_cpt();
 			Logger::log( 'Registered jobs post type', 'debug', 'cpt_manager', [ 'post_type' => Settings::get( 'jobs_cpt_slug', 'job' ) ] );
+		}
+
+		// Deals CPT — always register so admin links resolve correctly
+		if ( Settings::is_enabled( 'deals_enabled' ) ) {
+			self::register_deals_cpt();
+			self::register_deals_taxonomy();
+			Logger::log( 'Registered deals post type', 'debug', 'cpt_manager', [ 'post_type' => Settings::get( 'deals_cpt_slug', 'deal' ) ] );
 		}
 
 		do_action( 'cep_register_post_types' );
@@ -334,5 +339,64 @@ class CptManager {
 				wp_insert_term( $term, $taxonomy );
 			}
 		}
+	}
+
+	// ─── Deals CPT ───────────────────────────────────────────────────────────
+
+	private static function register_deals_cpt(): void {
+		$slug     = Settings::get( 'deals_cpt_slug', 'deal' );
+		$singular = Settings::get( 'deals_cpt_singular', 'Deal' );
+		$plural   = Settings::get( 'deals_cpt_plural', 'Deals' );
+		$archive  = Settings::get( 'deals_cpt_archive_slug', 'deals' );
+		$tax_slug = Settings::get( 'deals_tax_slug', 'deal-category' );
+
+		register_post_type(
+			$slug,
+			apply_filters( 'cep_deals_cpt_args', [
+				'labels'             => [
+					'name'               => $plural,
+					'singular_name'      => $singular,
+					'add_new_item'       => "Add New {$singular}",
+					'edit_item'          => "Edit {$singular}",
+					'view_item'          => "View {$singular}",
+					'all_items'          => "All {$plural}",
+					'search_items'       => "Search {$plural}",
+					'not_found'          => "No {$plural} found.",
+					'not_found_in_trash' => "No {$plural} found in Trash.",
+				],
+				'public'             => true,
+				'publicly_queryable' => true,
+				'show_ui'            => true,
+				'show_in_rest'       => true,
+				'has_archive'        => $archive,
+				'rewrite'            => [ 'slug' => $archive, 'with_front' => false, 'feeds' => true ],
+				'supports'           => [ 'title', 'editor', 'excerpt', 'thumbnail', 'custom-fields', 'author' ],
+				'taxonomies'         => [ $tax_slug ],
+				'menu_icon'          => 'dashicons-tag',
+				'menu_position'      => 6,
+				'capability_type'    => 'post',
+				'show_in_menu'       => 'cep-dashboard',
+			] )
+		);
+	}
+
+	private static function register_deals_taxonomy(): void {
+		$slug     = Settings::get( 'deals_tax_slug', 'deal-category' );
+		$cpt_slug = Settings::get( 'deals_cpt_slug', 'deal' );
+
+		register_taxonomy( $slug, $cpt_slug, [
+			'labels'            => [
+				'name'          => 'Deal Categories',
+				'singular_name' => 'Deal Category',
+			],
+			'hierarchical'      => true,
+			'public'            => true,
+			'show_ui'           => true,
+			'show_in_rest'      => true,
+			'show_admin_column' => true,
+			'rewrite'           => [ 'slug' => 'deals/category', 'with_front' => false ],
+		] );
+
+		self::ensure_terms( $slug, 'Electronics,Fashion,Home & Garden,Travel,Software,Food & Drink,Gaming,Sports,Finance,General' );
 	}
 }

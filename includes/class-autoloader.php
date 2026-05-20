@@ -39,6 +39,8 @@ class Autoloader {
 		'Trending\\'   => 'modules/trending/',
 		'Seo\\'        => 'modules/seo-agent/',
 		'PostType\\'   => 'post-types/',
+		'Deals\\Providers\\' => 'modules/deals/providers/',
+		'Deals\\'      => 'modules/deals/',
 		// Bare classes (no sub-namespace) → includes/
 	];
 

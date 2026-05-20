@@ -376,4 +376,83 @@ class CepCli {
 		}
 	}
 
+	/**
+	 * Manage the Deals Engine.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <subcommand>
+	 * : status | discover | generate | monitor | seed-sources
+	 *
+	 * [--count=<count>]
+	 * : Max deals to generate (overrides deals_max_per_run setting).
+	 *
+	 * ## EXAMPLES
+	 *
+	 *   wp cep deals status
+	 *   wp cep deals discover
+	 *   wp cep deals generate --count=3
+	 *   wp cep deals monitor
+	 *   wp cep deals seed-sources
+	 *
+	 * @when after_wp_load
+	 */
+	public function deals( array $args, array $assoc_args ): void {
+		$sub = $args[0] ?? 'status';
+
+		switch ( $sub ) {
+			case 'status':
+				$stats = \ContentEnginePro\Deals\DealDiscoverer::get_stats();
+				\WP_CLI::line( '' );
+				\WP_CLI::line( '=== Deals Engine Status ===' );
+				\WP_CLI\Utils\format_items( 'table', array_map(
+					static fn( $k, $v ) => [ 'Metric' => ucfirst( $k ), 'Count' => $v ],
+					array_keys( $stats ), array_values( $stats )
+				), [ 'Metric', 'Count' ] );
+				$max = Settings::get( 'deals_max_per_run', 2 );
+				\WP_CLI::line( "Max per run: {$max}" );
+				\WP_CLI::line( 'Autopilot: ' . ( Settings::is_enabled( 'deals_autopilot_enabled' ) ? 'enabled' : 'disabled' ) );
+				break;
+
+			case 'discover':
+				\WP_CLI::log( 'Running deal discovery...' );
+				\ContentEnginePro\Deals\DealDiscoverer::run();
+				$stats = \ContentEnginePro\Deals\DealDiscoverer::get_stats();
+				\WP_CLI::success( "Discovery complete. Pending queue: {$stats['pending']}" );
+				break;
+
+			case 'generate':
+				$count = \WP_CLI\Utils\get_flag_value( $assoc_args, 'count', null );
+				if ( $count !== null ) {
+					$original = Settings::get( 'deals_max_per_run', 2 );
+					$settings = get_option( 'cep_settings', [] );
+					$settings['deals_max_per_run'] = max( 1, (int) $count );
+					update_option( 'cep_settings', $settings );
+				}
+				\WP_CLI::log( 'Running deal article generation...' );
+				\ContentEnginePro\Deals\DealAutopilot::run();
+				if ( $count !== null ) {
+					$settings = get_option( 'cep_settings', [] );
+					$settings['deals_max_per_run'] = $original;
+					update_option( 'cep_settings', $settings );
+				}
+				\WP_CLI::success( 'Generation complete.' );
+				break;
+
+			case 'monitor':
+				\WP_CLI::log( 'Running deal monitor (expiry check)...' );
+				\ContentEnginePro\Deals\DealMonitor::run();
+				\WP_CLI::success( 'Monitor run complete.' );
+				break;
+
+			case 'seed-sources':
+				\ContentEnginePro\Deals\DealDiscoverer::seed_default_sources();
+				\WP_CLI::success( 'Default deal sources seeded.' );
+				break;
+
+			default:
+				\WP_CLI::error( "Unknown subcommand '{$sub}'. Use: status | discover | generate | monitor | seed-sources" );
+		}
+	}
+
 }
