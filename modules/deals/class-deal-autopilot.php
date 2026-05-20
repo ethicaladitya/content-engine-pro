@@ -252,11 +252,11 @@ Lead with the buyer context: who needs this product, what problem it solves, why
 **SECTION 2 — THE DEAL (H2: "The Deal: [Price] at [Merchant]")**
 Precise deal breakdown: current price, original price, discount amount/%, coupon code if any, where to buy, estimated expiry. Use a <ul> for clarity. State clearly: is this a genuinely good deal based on the product's typical pricing?
 
-**SECTION 3 — IS IT WORTH BUYING? (H2: "Is [Product] Worth $X?")**
+**SECTION 3 — IS IT WORTH BUYING? (H2: "Is [Product] Worth It?")**
 Honest product analysis. What does this product actually do well? What are its limitations? Who is it best for? Use research data where available. Include a <ul> of 3-4 key features. Be specific — no marketing copy.
 
 **SECTION 4 — ALTERNATIVES (H2: "Best Alternatives If This Deal Isn't Right For You")**
-2-3 alternatives at different price points. Format each as: <strong>Under $X: [Product Name]</strong> — 1 sentence on why. This section shows editorial depth and drives additional affiliate opportunities.
+2-3 alternatives at different price points. Format each as: <strong>Under [price]: [Product Name]</strong> — 1 sentence on why. This section shows editorial depth and drives additional affiliate opportunities.
 
 **SECTION 5 — FAQ (H2: "Frequently Asked Questions")**
 Exactly 3 Q&A pairs using <strong>Q:</strong> and <strong>A:</strong> format:
@@ -268,10 +268,10 @@ Exactly 3 Q&A pairs using <strong>Q:</strong> and <strong>A:</strong> format:
 🔎 SEO REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━
 - focus_keyword: "[product name] deal" or "[product name] sale" — what someone googles
-- Title: ≤70 chars, include price, use one of:
-  • "[Product] Deal: $X Off at [Merchant] (Was $Y)"
-  • "Save $X on [Product] — Best Price We've Found"
-  • "[Product] Drops to $X: Is It Worth Buying?"
+- Title: <=70 chars, include price, use one of:
+  * "[Product] Deal: Save [amount] at [Merchant] (Was [original])"
+  * "Save Big on [Product] — Best Price We've Found"
+  * "[Product] Drops to Deal Price: Is It Worth Buying?"
 - seo_title: focus keyword first, ≤60 chars, ends " | {$brand}"
 - seo_description: ≤155 chars, price + what you save + curiosity hook
 - url_slug: "product-name-deal" format, ≤5 words
