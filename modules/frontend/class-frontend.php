@@ -363,35 +363,46 @@ class Frontend {
 		?>
 		<form class="cep-job-filter" method="get" action="<?php echo $base; ?>" role="search" aria-label="<?php esc_attr_e( 'Filter remote jobs', 'content-engine-pro' ); ?>">
 			<div class="cep-job-filter__row">
-				<input type="search" class="cep-job-filter__search" name="cep_q"
-				       value="<?php echo esc_attr( $current['q'] ); ?>"
-				       placeholder="<?php esc_attr_e( 'Search title or company…', 'content-engine-pro' ); ?>" aria-label="<?php esc_attr_e( 'Search', 'content-engine-pro' ); ?>">
+				<div class="cep-job-filter__search-wrap">
+					<input type="search" class="cep-job-filter__search" name="cep_q"
+					       value="<?php echo esc_attr( $current['q'] ); ?>"
+					       placeholder="<?php esc_attr_e( 'Search title or company…', 'content-engine-pro' ); ?>" aria-label="<?php esc_attr_e( 'Search', 'content-engine-pro' ); ?>">
+				</div>
 
-				<select class="cep-job-filter__select" name="company" aria-label="<?php esc_attr_e( 'Filter by company', 'content-engine-pro' ); ?>">
-					<option value=""><?php esc_html_e( 'All companies', 'content-engine-pro' ); ?></option>
-					<?php foreach ( $companies as $c ) : ?>
-						<option value="<?php echo esc_attr( $c ); ?>" <?php selected( $current['company'], $c ); ?>><?php echo esc_html( $c ); ?></option>
-					<?php endforeach; ?>
-				</select>
+				<div class="cep-job-filter__select-wrap">
+					<select class="cep-job-filter__select" name="company" aria-label="<?php esc_attr_e( 'Filter by company', 'content-engine-pro' ); ?>">
+						<option value=""><?php esc_html_e( 'All companies', 'content-engine-pro' ); ?></option>
+						<?php foreach ( $companies as $c ) : ?>
+							<option value="<?php echo esc_attr( $c ); ?>" <?php selected( $current['company'], $c ); ?>><?php echo esc_html( $c ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</div>
 
-				<select class="cep-job-filter__select" name="location" aria-label="<?php esc_attr_e( 'Filter by location', 'content-engine-pro' ); ?>">
-					<option value=""><?php esc_html_e( 'All locations', 'content-engine-pro' ); ?></option>
-					<option value="Remote" <?php selected( $current['location'], 'Remote' ); ?>><?php esc_html_e( 'Remote', 'content-engine-pro' ); ?></option>
-					<?php foreach ( $locations as $l ) : ?>
-						<?php if ( 'Remote' === $l ) { continue; } ?>
-						<option value="<?php echo esc_attr( $l ); ?>" <?php selected( $current['location'], $l ); ?>><?php echo esc_html( $l ); ?></option>
-					<?php endforeach; ?>
-				</select>
+				<div class="cep-job-filter__select-wrap">
+					<select class="cep-job-filter__select" name="location" aria-label="<?php esc_attr_e( 'Filter by location', 'content-engine-pro' ); ?>">
+						<option value=""><?php esc_html_e( 'All locations', 'content-engine-pro' ); ?></option>
+						<option value="Remote" <?php selected( $current['location'], 'Remote' ); ?>><?php esc_html_e( 'Remote', 'content-engine-pro' ); ?></option>
+						<?php foreach ( $locations as $l ) : ?>
+							<?php if ( 'Remote' === $l ) { continue; } ?>
+							<option value="<?php echo esc_attr( $l ); ?>" <?php selected( $current['location'], $l ); ?>><?php echo esc_html( $l ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</div>
 
-				<select class="cep-job-filter__select" name="type" aria-label="<?php esc_attr_e( 'Filter by job type', 'content-engine-pro' ); ?>">
-					<option value=""><?php esc_html_e( 'All types', 'content-engine-pro' ); ?></option>
-					<?php foreach ( $types as $t ) : ?>
-						<option value="<?php echo esc_attr( $t ); ?>" <?php selected( $current['type'], $t ); ?>><?php echo esc_html( $t ); ?></option>
-					<?php endforeach; ?>
-				</select>
+				<div class="cep-job-filter__select-wrap">
+					<select class="cep-job-filter__select" name="type" aria-label="<?php esc_attr_e( 'Filter by job type', 'content-engine-pro' ); ?>">
+						<option value=""><?php esc_html_e( 'All types', 'content-engine-pro' ); ?></option>
+						<?php foreach ( $types as $t ) : ?>
+							<option value="<?php echo esc_attr( $t ); ?>" <?php selected( $current['type'], $t ); ?>><?php echo esc_html( $t ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</div>
 
 				<button type="submit" class="cep-btn cep-btn--primary cep-job-filter__submit"><?php esc_html_e( 'Filter', 'content-engine-pro' ); ?></button>
 			</div>
+			<?php if ( $current['q'] || $current['company'] || $current['location'] || $current['type'] ) : ?>
+				<a class="cep-job-filter__clear" href="<?php echo $base; ?>"><?php esc_html_e( 'Clear filters', 'content-engine-pro' ); ?></a>
+			<?php endif; ?>
 		</form>
 		<?php
 	}
