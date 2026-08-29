@@ -28,9 +28,17 @@ class Frontend {
 
 		// Jobs CPT frontend features (guard on the enabled toggle)
 		if ( Settings::is_enabled( 'jobs_cpt_enabled' ) ) {
-			add_filter( 'template_include',  [ $this, 'job_templates' ] );
-			add_action( 'pre_get_posts',     [ $this, 'job_archive_filter' ] );
-			add_action( 'cep_jobs_archive_before_loop', [ $this, 'render_job_filter_bar' ] );
+			// The active theme is a block/FSE theme with its own
+			// templates/single-job.html + templates/archive-job.html that render
+			// the correct header/footer parts and the [as_job_meta] shortcode.
+			// We deliberately do NOT override template_include for jobs:
+			// get_header()/get_footer() are no-ops in block themes, which would
+			// strip the site header/footer. Instead we filter the block query
+			// (pre_get_posts + query_loop_block_query_vars for wp:query) and
+			// inject the filter bar into the block archive via render_block.
+			add_action( 'pre_get_posts',          [ $this, 'job_archive_filter' ] );
+			add_filter( 'query_loop_block_query_vars', [ $this, 'job_block_query_vars' ], 10, 2 );
+			add_filter( 'render_block',           [ $this, 'inject_job_filter_bar' ], 10, 2 );
 		}
 	}
 
@@ -141,33 +149,6 @@ class Frontend {
 	}
 
 	/**
-	 * Serve plugin-bundled templates for the jobs CPT single and archive pages.
-	 * Theme authors can override by placing the file in their theme directory.
-	 *
-	 * @param string $template Original template path chosen by WordPress.
-	 * @return string
-	 */
-	public function job_templates( string $template ): string {
-		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
-
-		if ( is_singular( $jobs_cpt ) ) {
-			$located = $this->locate_template( 'single-job.php' );
-			if ( $located ) {
-				return $located;
-			}
-		}
-
-		if ( is_post_type_archive( $jobs_cpt ) ) {
-			$located = $this->locate_template( 'archive-job.php' );
-			if ( $located ) {
-				return $located;
-			}
-		}
-
-		return $template;
-	}
-
-	/**
 	 * Apply ?company= / ?location= / ?type= / ?salary= filters on the jobs
 	 * archive via meta queries. Falls back to a search-style contains match
 	 * when the exact value isn't present (robust to free-text meta from feeds).
@@ -237,9 +218,95 @@ class Frontend {
 	}
 
 	/**
-	 * Render the jobs filter bar (search + company + location + type + salary).
-	 * Echoed by archive-job.php via the `cep_jobs_archive_before_loop` action,
-	 * but also safe to call directly.
+	 * Filter the block-theme `wp:query` loop on the jobs archive.
+	 *
+	 * Block themes (FSE) ignore `template_include` and use `wp:query`, which is
+	 * driven by `query_loop_block_query_vars` rather than `pre_get_posts` for
+	 * the main query. This applies the same company/location/type meta filters.
+	 *
+	 * @param array    $query_vars Vars passed to WP_Query by the block.
+	 * @param \WP_Block $block      The query block instance.
+	 * @return array
+	 */
+	public function job_block_query_vars( array $query_vars, \WP_Block $block ): array {
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+
+		$post_type = $query_vars['post_type'] ?? '';
+		if ( ( is_array( $post_type ) ? in_array( $jobs_cpt, $post_type, true ) : $post_type === $jobs_cpt ) === false ) {
+			return $query_vars;
+		}
+
+		// Only act when on the actual jobs archive (not an arbitrary query block).
+		if ( ! is_post_type_archive( $jobs_cpt ) ) {
+			return $query_vars;
+		}
+
+		$meta_query = $query_vars['meta_query'] ?? [];
+
+		$company = isset( $_GET['company'] ) ? sanitize_text_field( wp_unslash( $_GET['company'] ) ) : '';
+		if ( $company ) {
+			$meta_query[] = [ 'key' => '_cep_job_company', 'value' => $company, 'compare' => 'LIKE' ];
+		}
+
+		$location = isset( $_GET['location'] ) ? sanitize_text_field( wp_unslash( $_GET['location'] ) ) : '';
+		if ( $location ) {
+			$meta_query[] = [ 'key' => '_cep_job_location', 'value' => $location, 'compare' => 'LIKE' ];
+		}
+
+		$type = isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '';
+		if ( $type ) {
+			$meta_query[] = [ 'key' => '_cep_job_type', 'value' => $type, 'compare' => 'LIKE' ];
+		}
+
+		if ( ! empty( $meta_query ) ) {
+			$query_vars['meta_query'] = $meta_query; // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+		}
+
+		return $query_vars;
+	}
+
+	/**
+	 * Inject the jobs filter bar into the block-theme archive.
+	 *
+	 * Block themes (FSE) don't run our PHP `archive-job.php`, so we prepend the bar to
+	 * the `wp:query` (and `wp:query-pagination`) block output on the jobs
+	 * archive. Runs once (on the first matching block) to avoid repetition.
+	 *
+	 * NOTE: the `render_block` filter passes the parsed block as an **array**
+	 * (not a `WP_Block` instance) in this WordPress version, so we type-hint
+	 * `array` and read `blockName` from it.
+	 *
+	 * @param string $html  Block output.
+	 * @param array  $block Parsed block (associative array).
+	 * @return string
+	 */
+	public function inject_job_filter_bar( string $html, array $block ): string {
+		static $done = false;
+
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+		if ( ! is_post_type_archive( $jobs_cpt ) || $done ) {
+			return $html;
+		}
+
+		$block_name = (string) ( $block['blockName'] ?? '' );
+		if ( 'core/query' !== $block_name && 'core/query-pagination' !== $block_name ) {
+			return $html;
+		}
+
+		ob_start();
+		$this->render_job_filter_bar();
+		$bar = ob_get_clean();
+		$done = true;
+
+		return $bar . $html;
+	}
+
+	/**
+	 * Render the jobs filter bar (search + company + location + type).
+	 *
+	 * Injected into the block-theme archive via `render_block`, or callable
+	 * directly. Note: a "salary" filter is intentionally omitted — the jobs
+	 * feed does not capture salary for any listing, so it would always be empty.
 	 */
 	public function render_job_filter_bar(): void {
 		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
@@ -255,7 +322,6 @@ class Frontend {
 			'company'  => isset( $_GET['company'] ) ? sanitize_text_field( wp_unslash( $_GET['company'] ) ) : '',
 			'location' => isset( $_GET['location'] ) ? sanitize_text_field( wp_unslash( $_GET['location'] ) ) : '',
 			'type'     => isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '',
-			'salary'   => isset( $_GET['salary'] ) ? sanitize_text_field( wp_unslash( $_GET['salary'] ) ) : '',
 			's'        => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
 		];
 
@@ -276,7 +342,9 @@ class Frontend {
 
 				<select class="cep-job-filter__select" name="location" aria-label="<?php esc_attr_e( 'Filter by location', 'content-engine-pro' ); ?>">
 					<option value=""><?php esc_html_e( 'All locations', 'content-engine-pro' ); ?></option>
+					<option value="Remote" <?php selected( $current['location'], 'Remote' ); ?>><?php esc_html_e( 'Remote', 'content-engine-pro' ); ?></option>
 					<?php foreach ( $locations as $l ) : ?>
+						<?php if ( 'Remote' === $l ) { continue; } ?>
 						<option value="<?php echo esc_attr( $l ); ?>" <?php selected( $current['location'], $l ); ?>><?php echo esc_html( $l ); ?></option>
 					<?php endforeach; ?>
 				</select>
@@ -286,12 +354,6 @@ class Frontend {
 					<?php foreach ( $types as $t ) : ?>
 						<option value="<?php echo esc_attr( $t ); ?>" <?php selected( $current['type'], $t ); ?>><?php echo esc_html( $t ); ?></option>
 					<?php endforeach; ?>
-				</select>
-
-				<select class="cep-job-filter__select" name="salary" aria-label="<?php esc_attr_e( 'Filter by salary', 'content-engine-pro' ); ?>">
-					<option value=""><?php esc_html_e( 'Any salary', 'content-engine-pro' ); ?></option>
-					<option value="yes" <?php selected( $current['salary'], 'yes' ); ?>><?php esc_html_e( 'Salary listed', 'content-engine-pro' ); ?></option>
-					<option value="no" <?php selected( $current['salary'], 'no' ); ?>><?php esc_html_e( 'Salary not listed', 'content-engine-pro' ); ?></option>
 				</select>
 
 				<button type="submit" class="cep-btn cep-btn--primary cep-job-filter__submit"><?php esc_html_e( 'Filter', 'content-engine-pro' ); ?></button>

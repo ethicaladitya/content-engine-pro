@@ -266,10 +266,50 @@ class JobAggregator {
 	}
 
 	/**
+	 * Detect whether a URL points at a company careers/landing index page
+	 * rather than an individual job role. Some RSS feeds emit the bare
+	 * "/careers/" or "/jobs/" index as a listing item; publishing it produces
+	 * a "job" post that only shows the employer's generic intro blurb.
+	 *
+	 * @param string $url
+	 * @return bool
+	 */
+	private static function is_careers_index_url( string $url ): bool {
+		$path = (string) wp_parse_url( $url, PHP_URL_PATH );
+		$path = rtrim( strtolower( trim( $path ) ), '/' );
+
+		if ( '' === $path ) {
+			return false;
+		}
+
+		// Bare index paths: /careers, /jobs, /careers/, /jobs/, /#open-roles, etc.
+		if ( preg_match( '#/(careers?|jobs?|vacancies|open-roles|openings|empleos)$#i', $path ) ) {
+			return true;
+		}
+
+		// Index with only a fragment and no deeper slug: /careers/#open-roles
+		if ( preg_match( '#/(careers?|jobs?)/?$#i', $path ) && '' !== (string) wp_parse_url( $url, PHP_URL_FRAGMENT ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
 	 * Process one job listing: AI-format and publish.
 	 */
 	private static function process_listing( array $listing, array $niche ) {
 		global $wpdb;
+
+		// Skip careers/landing index URLs that some feeds emit as a "job"
+		// item (e.g. https://10up.com/careers/). These are company pages, not
+		// individual roles — the dedicated company_careers_map / career scraper
+		// already covers them separately. Publishing the index as a job shows
+		// the company's generic careers blurb instead of real openings.
+		if ( self::is_careers_index_url( $listing['url'] ) ) {
+			Logger::log( "Skipping careers index URL (not an individual role): {$listing['url']}", 'info', 'job_aggregator' );
+			return 0;
+		}
 
 		// Store in raw table to prevent duplicates on next run
 		$wpdb->insert(
