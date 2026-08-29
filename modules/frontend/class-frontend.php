@@ -13,6 +13,16 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Frontend {
 
+	/**
+	 * Whether the current request resolved to the jobs CPT archive.
+	 * Set in job_archive_filter() while the main query is reliable, then
+	 * read during render_block (where is_post_type_archive() is unreliable
+	 * inside FSE block rendering).
+	 *
+	 * @var bool
+	 */
+	private bool $on_jobs_archive = false;
+
 	public function register(): void {
 		add_action( 'wp_enqueue_scripts',  [ $this, 'enqueue_assets' ] );
 		add_action( 'wp_enqueue_scripts',  [ $this, 'job_assets' ] );
@@ -165,6 +175,8 @@ class Frontend {
 			return;
 		}
 
+		$this->on_jobs_archive = true;
+
 		$meta_query = [];
 
 		$company = isset( $_GET['company'] ) ? sanitize_text_field( wp_unslash( $_GET['company'] ) ) : '';
@@ -304,13 +316,14 @@ class Frontend {
 	public function inject_job_filter_bar( string $html, array $block ): string {
 		static $done = false;
 
-		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
-		if ( ! is_post_type_archive( $jobs_cpt ) || $done ) {
+		if ( ! $this->on_jobs_archive || $done ) {
 			return $html;
 		}
 
 		$block_name = (string) ( $block['blockName'] ?? '' );
-		if ( 'core/query' !== $block_name && 'core/query-pagination' !== $block_name ) {
+		// Only the cards `core/query` — prepending puts the bar above the list.
+		// (Matching `core/query-pagination` would drop it after the cards.)
+		if ( 'core/query' !== $block_name ) {
 			return $html;
 		}
 
