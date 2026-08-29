@@ -206,6 +206,29 @@ if ( ! function_exists( 'cep_render_stars' ) ) {
 	}
 }
 
+if ( ! function_exists( 'cep_get_job_meta' ) ) {
+	/**
+	 * Retrieve normalised job meta for a given post.
+	 *
+	 * Wraps the `_cep_job_*` meta keys written by the jobs autopilot
+	 * (class-job-aggregator.php) and exposes them to templates.
+	 *
+	 * @param int $post_id
+	 * @return array{company:string, location:string, type:string, salary:string, url:string, source:string, pub_date:string}
+	 */
+	function cep_get_job_meta( int $post_id ): array {
+		return [
+			'company'  => (string) get_post_meta( $post_id, '_cep_job_company', true ),
+			'location' => (string) get_post_meta( $post_id, '_cep_job_location', true ),
+			'type'     => (string) get_post_meta( $post_id, '_cep_job_type', true ),
+			'salary'   => (string) get_post_meta( $post_id, '_cep_job_salary', true ),
+			'url'      => (string) get_post_meta( $post_id, '_cep_job_url', true ),
+			'source'   => (string) get_post_meta( $post_id, '_cep_job_source', true ),
+			'pub_date' => (string) get_post_meta( $post_id, '_cep_job_pub_date', true ),
+		];
+	}
+}
+
 if ( ! function_exists( 'cep_decrypt_affiliate_url' ) ) {
 	/**
 	 * Decrypt an AES-256-CBC encrypted affiliate URL.

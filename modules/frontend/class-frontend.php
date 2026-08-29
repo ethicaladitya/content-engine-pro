@@ -15,6 +15,7 @@ class Frontend {
 
 	public function register(): void {
 		add_action( 'wp_enqueue_scripts',  [ $this, 'enqueue_assets' ] );
+		add_action( 'wp_enqueue_scripts',  [ $this, 'job_assets' ] );
 		add_action( 'after_setup_theme',   [ $this, 'register_image_sizes' ] );
 		add_action( 'pre_get_posts',       [ $this, 'modify_main_query' ] );
 
@@ -24,10 +25,60 @@ class Frontend {
 			add_filter( 'the_content',       [ $this, 'inject_homepage_reviews' ] );
 			add_filter( 'wp_nav_menu_items', [ $this, 'add_reviews_nav_item' ], 20, 2 );
 		}
+
+		// Jobs CPT frontend features (guard on the enabled toggle)
+		if ( Settings::is_enabled( 'jobs_cpt_enabled' ) ) {
+			add_filter( 'template_include',  [ $this, 'job_templates' ] );
+			add_action( 'pre_get_posts',     [ $this, 'job_archive_filter' ] );
+			add_action( 'cep_jobs_archive_before_loop', [ $this, 'render_job_filter_bar' ] );
+		}
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// Assets
+	// Jobs assets (filter bar + archive styling)
+	// ─────────────────────────────────────────────────────────────────────────
+
+	public function job_assets(): void {
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+
+		$load = is_post_type_archive( $jobs_cpt )
+			|| is_singular( $jobs_cpt )
+			|| is_post_type_archive( Settings::get( 'primary_cpt_slug', 'post' ) )
+			|| is_home()
+			|| is_front_page();
+
+		if ( ! $load ) {
+			return;
+		}
+
+		wp_enqueue_style(
+			'cep-jobs',
+			\CEP_URL . 'assets/css/jobs.css',
+			[],
+			\CEP_VERSION
+		);
+
+		if ( is_post_type_archive( $jobs_cpt ) ) {
+			wp_enqueue_script(
+				'cep-jobs-filter',
+				\CEP_URL . 'assets/js/jobs-filter.js',
+				[ 'jquery' ],
+				\CEP_VERSION,
+				true
+			);
+			wp_localize_script(
+				'cep-jobs-filter',
+				'cepJobsL10n',
+				[
+					'clear' => __( 'Clear', 'content-engine-pro' ),
+					'none'  => __( 'No jobs match your filters.', 'content-engine-pro' ),
+				]
+			);
+		}
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// Assets (reviews + primary CPT)
 	// ─────────────────────────────────────────────────────────────────────────
 
 	public function enqueue_assets(): void {
@@ -87,6 +138,198 @@ class Frontend {
 		}
 
 		return $template;
+	}
+
+	/**
+	 * Serve plugin-bundled templates for the jobs CPT single and archive pages.
+	 * Theme authors can override by placing the file in their theme directory.
+	 *
+	 * @param string $template Original template path chosen by WordPress.
+	 * @return string
+	 */
+	public function job_templates( string $template ): string {
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+
+		if ( is_singular( $jobs_cpt ) ) {
+			$located = $this->locate_template( 'single-job.php' );
+			if ( $located ) {
+				return $located;
+			}
+		}
+
+		if ( is_post_type_archive( $jobs_cpt ) ) {
+			$located = $this->locate_template( 'archive-job.php' );
+			if ( $located ) {
+				return $located;
+			}
+		}
+
+		return $template;
+	}
+
+	/**
+	 * Apply ?company= / ?location= / ?type= / ?salary= filters on the jobs
+	 * archive via meta queries. Falls back to a search-style contains match
+	 * when the exact value isn't present (robust to free-text meta from feeds).
+	 *
+	 * @param \WP_Query $query
+	 */
+	public function job_archive_filter( \WP_Query $query ): void {
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+		if ( ! is_post_type_archive( $jobs_cpt ) ) {
+			return;
+		}
+
+		$meta_query = [];
+
+		$company = isset( $_GET['company'] ) ? sanitize_text_field( wp_unslash( $_GET['company'] ) ) : '';
+		if ( $company ) {
+			$meta_query[] = [
+				'key'     => '_cep_job_company',
+				'value'   => $company,
+				'compare' => 'LIKE',
+			];
+		}
+
+		$location = isset( $_GET['location'] ) ? sanitize_text_field( wp_unslash( $_GET['location'] ) ) : '';
+		if ( $location ) {
+			$meta_query[] = [
+				'key'     => '_cep_job_location',
+				'value'   => $location,
+				'compare' => 'LIKE',
+			];
+		}
+
+		$type = isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '';
+		if ( $type ) {
+			$meta_query[] = [
+				'key'     => '_cep_job_type',
+				'value'   => $type,
+				'compare' => 'LIKE',
+			];
+		}
+
+		$salary = isset( $_GET['salary'] ) ? sanitize_text_field( wp_unslash( $_GET['salary'] ) ) : '';
+		if ( $salary ) {
+			// 'yes' => only jobs that advertise a salary; 'no' => only unpaid/undisclosed.
+			if ( 'yes' === $salary ) {
+				$meta_query[] = [
+					'key'     => '_cep_job_salary',
+					'value'   => '',
+					'compare' => '!=',
+				];
+			} elseif ( 'no' === $salary ) {
+				$meta_query[] = [
+					'key'     => '_cep_job_salary',
+					'value'   => '',
+					'compare' => '=',
+				];
+			}
+		}
+
+		if ( ! empty( $meta_query ) ) {
+			$query->set( 'meta_query', $meta_query ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+		}
+	}
+
+	/**
+	 * Render the jobs filter bar (search + company + location + type + salary).
+	 * Echoed by archive-job.php via the `cep_jobs_archive_before_loop` action,
+	 * but also safe to call directly.
+	 */
+	public function render_job_filter_bar(): void {
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+		if ( ! is_post_type_archive( $jobs_cpt ) ) {
+			return;
+		}
+
+		$companies = $this->get_job_meta_values( '_cep_job_company' );
+		$locations = $this->get_job_meta_values( '_cep_job_location' );
+		$types     = $this->get_job_meta_values( '_cep_job_type' );
+
+		$current = [
+			'company'  => isset( $_GET['company'] ) ? sanitize_text_field( wp_unslash( $_GET['company'] ) ) : '',
+			'location' => isset( $_GET['location'] ) ? sanitize_text_field( wp_unslash( $_GET['location'] ) ) : '',
+			'type'     => isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '',
+			'salary'   => isset( $_GET['salary'] ) ? sanitize_text_field( wp_unslash( $_GET['salary'] ) ) : '',
+			's'        => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
+		];
+
+		$base = esc_url( get_post_type_archive_link( $jobs_cpt ) );
+		?>
+		<form class="cep-job-filter" method="get" action="<?php echo $base; ?>" role="search" aria-label="<?php esc_attr_e( 'Filter remote jobs', 'content-engine-pro' ); ?>">
+			<div class="cep-job-filter__row">
+				<input type="search" class="cep-job-filter__search" name="s"
+				       value="<?php echo esc_attr( $current['s'] ); ?>"
+				       placeholder="<?php esc_attr_e( 'Search title or company…', 'content-engine-pro' ); ?>" aria-label="<?php esc_attr_e( 'Search', 'content-engine-pro' ); ?>">
+
+				<select class="cep-job-filter__select" name="company" aria-label="<?php esc_attr_e( 'Filter by company', 'content-engine-pro' ); ?>">
+					<option value=""><?php esc_html_e( 'All companies', 'content-engine-pro' ); ?></option>
+					<?php foreach ( $companies as $c ) : ?>
+						<option value="<?php echo esc_attr( $c ); ?>" <?php selected( $current['company'], $c ); ?>><?php echo esc_html( $c ); ?></option>
+					<?php endforeach; ?>
+				</select>
+
+				<select class="cep-job-filter__select" name="location" aria-label="<?php esc_attr_e( 'Filter by location', 'content-engine-pro' ); ?>">
+					<option value=""><?php esc_html_e( 'All locations', 'content-engine-pro' ); ?></option>
+					<?php foreach ( $locations as $l ) : ?>
+						<option value="<?php echo esc_attr( $l ); ?>" <?php selected( $current['location'], $l ); ?>><?php echo esc_html( $l ); ?></option>
+					<?php endforeach; ?>
+				</select>
+
+				<select class="cep-job-filter__select" name="type" aria-label="<?php esc_attr_e( 'Filter by job type', 'content-engine-pro' ); ?>">
+					<option value=""><?php esc_html_e( 'All types', 'content-engine-pro' ); ?></option>
+					<?php foreach ( $types as $t ) : ?>
+						<option value="<?php echo esc_attr( $t ); ?>" <?php selected( $current['type'], $t ); ?>><?php echo esc_html( $t ); ?></option>
+					<?php endforeach; ?>
+				</select>
+
+				<select class="cep-job-filter__select" name="salary" aria-label="<?php esc_attr_e( 'Filter by salary', 'content-engine-pro' ); ?>">
+					<option value=""><?php esc_html_e( 'Any salary', 'content-engine-pro' ); ?></option>
+					<option value="yes" <?php selected( $current['salary'], 'yes' ); ?>><?php esc_html_e( 'Salary listed', 'content-engine-pro' ); ?></option>
+					<option value="no" <?php selected( $current['salary'], 'no' ); ?>><?php esc_html_e( 'Salary not listed', 'content-engine-pro' ); ?></option>
+				</select>
+
+				<button type="submit" class="cep-btn cep-btn--primary cep-job-filter__submit"><?php esc_html_e( 'Filter', 'content-engine-pro' ); ?></button>
+			</div>
+		</form>
+		<?php
+	}
+
+	/**
+	 * Distinct, non-empty values for a job meta key (cached per request).
+	 *
+	 * @param string $meta_key
+	 * @return string[]
+	 */
+	private function get_job_meta_values( string $meta_key ): array {
+		static $cache = [];
+		if ( isset( $cache[ $meta_key ] ) ) {
+			return $cache[ $meta_key ];
+		}
+
+		global $wpdb;
+		$values = $wpdb->get_col( $wpdb->prepare(
+			"SELECT DISTINCT meta_value FROM {$wpdb->postmeta} pm
+			 INNER JOIN {$wpdb->posts} p ON p.ID = pm.post_id
+			 WHERE pm.meta_key = %s
+			   AND pm.meta_value != ''
+			   AND p.post_type = %s
+			   AND p.post_status = 'publish'",
+			$meta_key,
+			Settings::get( 'jobs_cpt_slug', 'job' )
+		) );
+
+		$values = array_map( 'trim', $values );
+		$values = array_filter( $values );
+		sort( $values );
+		$cache[ $meta_key ] = $values;
+
+		return $values;
 	}
 
 	/**

@@ -213,6 +213,29 @@ class CepCli {
 	}
 
 	/**
+	 * Re-format existing job posts (backfill structured content from stored meta).
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--limit=<limit>]
+	 * : Max jobs to reformat in this run. Default: all published jobs.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *   wp cep reformat-jobs
+	 *   wp cep reformat-jobs --limit=20
+	 *
+	 * @when after_wp_load
+	 */
+	public function reformat_jobs( array $args, array $assoc_args ): void {
+		$limit = (int) \WP_CLI\Utils\get_flag_value( $assoc_args, 'limit', 0 );
+
+		\WP_CLI::log( 'Re-formatting published job posts…' );
+		$updated = \ContentEnginePro\Jobs\JobReformat::run( $limit );
+		\WP_CLI::success( "Re-formatted {$updated} job post(s)." );
+	}
+
+	/**
 	 * Run the jobs aggregator.
 	 *
 	 * ## EXAMPLES
