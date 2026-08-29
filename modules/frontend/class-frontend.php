@@ -212,6 +212,27 @@ class Frontend {
 			}
 		}
 
+		// Free-text search on the job title/company (NOT core WP `s`, which would
+		// route to the search template and mix in blog posts with image cards).
+		$q = isset( $_GET['cep_q'] ) ? sanitize_text_field( wp_unslash( $_GET['cep_q'] ) ) : '';
+		if ( $q ) {
+			$query->set( 's', '' ); // disable core search behaviour
+			add_filter( 'posts_search', static function ( $search, $wp_query ) use ( $q ) {
+				global $wpdb;
+				if ( empty( $search ) ) {
+					return $search;
+				}
+				$like = '%' . $wpdb->esc_like( $q ) . '%';
+				// Match title OR company meta.
+				$search = $wpdb->prepare(
+					" AND ( {$wpdb->posts}.post_title LIKE %s OR EXISTS ( SELECT 1 FROM {$wpdb->postmeta} pm WHERE pm.post_id = {$wpdb->posts}.ID AND pm.meta_key = '_cep_job_company' AND pm.meta_value LIKE %s ) ) ",
+					$like,
+					$like
+				);
+				return $search;
+			}, 10, 2 );
+		}
+
 		if ( ! empty( $meta_query ) ) {
 			$query->set( 'meta_query', $meta_query ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 		}
@@ -322,15 +343,15 @@ class Frontend {
 			'company'  => isset( $_GET['company'] ) ? sanitize_text_field( wp_unslash( $_GET['company'] ) ) : '',
 			'location' => isset( $_GET['location'] ) ? sanitize_text_field( wp_unslash( $_GET['location'] ) ) : '',
 			'type'     => isset( $_GET['type'] ) ? sanitize_text_field( wp_unslash( $_GET['type'] ) ) : '',
-			's'        => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
+			'q'        => isset( $_GET['cep_q'] ) ? sanitize_text_field( wp_unslash( $_GET['cep_q'] ) ) : '',
 		];
 
 		$base = esc_url( get_post_type_archive_link( $jobs_cpt ) );
 		?>
 		<form class="cep-job-filter" method="get" action="<?php echo $base; ?>" role="search" aria-label="<?php esc_attr_e( 'Filter remote jobs', 'content-engine-pro' ); ?>">
 			<div class="cep-job-filter__row">
-				<input type="search" class="cep-job-filter__search" name="s"
-				       value="<?php echo esc_attr( $current['s'] ); ?>"
+				<input type="search" class="cep-job-filter__search" name="cep_q"
+				       value="<?php echo esc_attr( $current['q'] ); ?>"
 				       placeholder="<?php esc_attr_e( 'Search title or company…', 'content-engine-pro' ); ?>" aria-label="<?php esc_attr_e( 'Search', 'content-engine-pro' ); ?>">
 
 				<select class="cep-job-filter__select" name="company" aria-label="<?php esc_attr_e( 'Filter by company', 'content-engine-pro' ); ?>">
