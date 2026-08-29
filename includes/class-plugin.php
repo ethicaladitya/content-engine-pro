@@ -144,6 +144,13 @@ class Plugin {
 
 		// Jobs autopilot
 		add_action( 'cep_jobs_aggregate', [ Jobs\JobAggregator::class, 'run' ], 10, 0 );
+		// Jobs description enrichment (fills scraped jobs with real text)
+		add_action( 'cep_jobs_enrich', [ Jobs\JobAggregator::class, 'enrich_pending' ], 10, 0 );
+
+		// Ping search engines when a new job is published (throttled).
+		add_action( 'cep_job_published', [ Jobs\JobAggregator::class, 'ping_search_engines' ], 10, 1 );
+		// Weekly SEO self-audit for the job CPT (schema/meta/excerpt/index).
+		add_action( 'cep_jobs_seo_audit', [ Jobs\JobAggregator::class, 'seo_audit' ], 10, 0 );
 
 		// Trending topics autopilot
 		add_action( 'cep_trending_autopilot', [ Trending\TrendingAutopilot::class, 'run' ], 10, 0 );

@@ -86,9 +86,26 @@ class SchemaInjector {
 		$post_type   = get_post_type( $post_id );
 		$reviews_cpt = Settings::get( 'reviews_cpt_slug', 'review' );
 
-		// Only inject schema for the reviews CPT — no SEO plugin auto-generates
-		// Review + ReviewRating schema. Everything else is handled upstream.
-		if ( $post_type !== $reviews_cpt ) {
+		// Reviews CPT gets Review + ReviewRating schema (SEO plugins don't).
+		if ( $post_type === $reviews_cpt ) {
+			$schema = $this->build_review_schema( $post );
+			$schema = apply_filters( 'cep_schema_data', $schema, $post_id, $post_type );
+			if ( ! empty( $schema ) ) {
+				echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
+			}
+			$this->inject_breadcrumbs();
+			return;
+		}
+
+		// Job CPT gets JobPosting schema for Google Jobs rich results.
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+		if ( $post_type === $jobs_cpt ) {
+			$schema = $this->build_job_schema( $post );
+			$schema = apply_filters( 'cep_schema_data', $schema, $post_id, $post_type );
+			if ( ! empty( $schema ) ) {
+				echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
+			}
+			$this->inject_breadcrumbs();
 			return;
 		}
 
@@ -184,4 +201,158 @@ class SchemaInjector {
 			echo '<meta name="twitter:image" content="' . esc_url( $image ) . '" />' . "\n";
 		}
 	}
+
+	/**
+	 * Build JobPosting schema.org markup for a single job.
+	 *
+	 * Maps stored CEP meta onto the Google Jobs schema fields. All values are
+	 * escaped/sanitised; the description is truncated to a safe length.
+	 *
+	 * @param \WP_Post $post
+	 * @return array
+	 */
+        private function build_job_schema( \WP_Post $post ): array {
+            $id      = (int) $post->ID;
+            $company = (string) get_post_meta( $id, '_cep_job_company', true );
+            $loc     = (string) get_post_meta( $id, '_cep_job_location', true );
+            $type    = (string) get_post_meta( $id, '_cep_job_type', true );
+            $salary  = (string) get_post_meta( $id, '_cep_job_salary', true );
+            // Point directApply at the employer's own apply URL (with UTM)
+            // when known, else the intermediary listing + UTM.
+            $apply   = \ContentEnginePro\Jobs\JobAggregator::apply_url( $id );
+            $source  = (string) get_post_meta( $id, '_cep_job_source', true );
+            $desc    = wp_kses_post( $post->post_content );
+            $desc    = wp_trim_words( wp_strip_all_tags( $desc ), 400 );
+
+            $remote  = (bool) preg_match( '/\bremote\b/i', $loc . ' ' . ($type ?: '') . ' ' . get_the_title( $id ) );
+            $country = $this->derive_country( $loc );
+
+            $hiring = [
+                '@type' => 'Organization',
+                'name'  => $company ?: get_bloginfo( 'name' ),
+            ];
+            $same   = $this->derive_domain( $source ?: $apply );
+            if ( $same ) {
+                $hiring['sameAs'] = esc_url( $same );
+            }
+
+            $schema = [
+                '@context'        => 'https://schema.org',
+                '@type'           => 'JobPosting',
+                'title'           => get_the_title( $id ),
+                'description'     => $desc,
+                'datePosted'      => get_the_date( 'c', $id ),
+                'validThrough'    => gmdate( 'c', strtotime( $post->post_date_gmt ) + 30 * DAY_IN_SECONDS ),
+                'employmentType'  => $this->map_employment_type( $type ),
+                'hiringOrganization' => $hiring,
+                'jobLocation'     => [
+                    '@type' => 'Place',
+                    'address' => $this->build_address( $loc, $country ),
+                ],
+                'directApply'     => $apply ? [ '@type' => 'URL', 'url' => esc_url( $apply ) ] : false,
+            ];
+
+            if ( $remote ) {
+                $schema['jobLocationType'] = 'TELECOMMUTE';
+                if ( $country ) {
+                    $schema['applicantLocationRequirements'] = [
+                        '@type' => 'Country',
+                        'name'  => $country,
+                    ];
+                }
+            }
+            if ( $salary ) {
+                $schema['baseSalary'] = $this->build_salary( $salary );
+            }
+            return $schema;
+        }
+
+        private function build_address( string $loc, string $country ): array {
+            $parts = preg_split( '/\s*,\s*/', trim( $loc ) );
+            $city  = $parts[0] ?? '';
+            return [
+                '@type'           => 'PostalAddress',
+                'addressLocality' => $city,
+                'addressCountry'  => $country ?: '',
+            ];
+        }
+
+        private function build_salary( string $salary ): array {
+            $num = preg_replace( '/[^0-9.]/', '', $salary );
+            return [
+                '@type'    => 'MonetaryAmount',
+                'currency' => 'USD',
+                'value'    => [
+                    '@type'    => 'QuantitativeValue',
+                    'value'    => $num ? (float) $num : 0,
+                    'unitText' => 'YEAR',
+                ],
+            ];
+        }
+
+        private function map_employment_type( string $type ): array {
+            $t = strtolower( $type );
+            $map = [
+                'full'    => 'FULL_TIME',
+                'part'    => 'PART_TIME',
+                'contract'=> 'CONTRACTOR',
+                'temp'    => 'TEMPORARY',
+                'intern'  => 'INTERN',
+            ];
+            foreach ( $map as $k => $v ) {
+                if ( strpos( $t, $k ) !== false ) {
+                    return [ $v ];
+                }
+            }
+            return [ 'FULL_TIME' ];
+        }
+
+        private function derive_country( string $loc ): string {
+            $map = [
+                'usa' => 'US', 'united states' => 'US', 'us ' => 'US', 'u.s.' => 'US',
+                'uk' => 'GB', 'united kingdom' => 'GB', 'england' => 'GB',
+                'india' => 'IN', 'remote, india' => 'IN',
+                'canada' => 'CA', 'germany' => 'DE', 'eu' => 'EU', 'europe' => 'EU',
+                'australia' => 'AU', 'apac' => 'APAC',
+            ];
+            $l = strtolower( $loc );
+            foreach ( $map as $k => $v ) {
+                if ( strpos( $l, $k ) !== false ) {
+                    return $v;
+                }
+            }
+            return '';
+        }
+
+        private function derive_domain( string $url ): string {
+            $host = wp_parse_url( $url, PHP_URL_HOST );
+            return $host ? 'https://' . preg_replace( '/^www\./', '', $host ) : '';
+        }
+
+	/**
+	 * Emit BreadcrumbList JSON-LD for the current job or jobs archive.
+	 */
+        private function inject_breadcrumbs(): void {
+            $items   = [];
+            $home    = home_url( '/' );
+            $items[] = [ '@type' => 'ListItem', 'position' => 1, 'name' => get_bloginfo( 'name' ), 'item' => $home ];
+
+            $jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+            $archive  = Settings::get( 'jobs_archive_slug', 'jobs' );
+            $jobs_url = $archive ? home_url( '/' . $archive . '/' ) : get_post_type_archive_link( $jobs_cpt );
+            if ( $jobs_url ) {
+                $items[] = [ '@type' => 'ListItem', 'position' => 2, 'name' => 'Remote Jobs', 'item' => esc_url( $jobs_url ) ];
+            }
+
+            if ( is_singular( $jobs_cpt ) ) {
+                $items[] = [ '@type' => 'ListItem', 'position' => 3, 'name' => get_the_title( get_the_ID() ), 'item' => esc_url( get_permalink( get_the_ID() ) ) ];
+            }
+
+            $schema = [
+                '@context' => 'https://schema.org',
+                '@type'    => 'BreadcrumbList',
+                'itemListElement' => $items,
+            ];
+            echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
+        }
 }
