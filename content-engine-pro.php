@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 // Plugin constants
-define( 'CEP_VERSION', '1.4.0' );
+define( 'CEP_VERSION', '1.4.8' );
 define( 'CEP_DB_VERSION', '1.1.0' );
 define( 'CEP_FILE', __FILE__ );
 define( 'CEP_DIR', plugin_dir_path( __FILE__ ) );

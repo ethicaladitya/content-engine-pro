@@ -107,6 +107,24 @@ class JobAggregator {
 			return;
 		}
 
+		$per_company_cap = (int) apply_filters( 'cep_jobs_per_company_cap', 3 );
+		if ( $per_company_cap > 0 ) {
+			$seen = [];
+			$capped = [];
+			foreach ( $new_listings as $listing ) {
+				$key = strtolower( trim( (string) $listing['company'] ) );
+				if ( '' === $key ) {
+					$key = '__unknown__';
+				}
+				if ( ( $seen[ $key ] ?? 0 ) >= $per_company_cap ) {
+					continue;
+				}
+				$capped[] = $listing;
+				$seen[ $key ] = ( $seen[ $key ] ?? 0 ) + 1;
+			}
+			$new_listings = $capped;
+		}
+
 		// Limit to max per run
 		$to_process = array_slice( $new_listings, 0, $max );
 
@@ -167,7 +185,7 @@ class JobAggregator {
 		foreach ( $xml->channel->item ?? [] as $item ) {
 			$title    = html_entity_decode( (string) $item->title, ENT_QUOTES, 'UTF-8' );
 			$link     = (string) $item->link;
-			$desc     = html_entity_decode( wp_strip_all_tags( (string) $item->description ), ENT_QUOTES, 'UTF-8' );
+			$desc     = self::clean_description( (string) $item->description );
 			$pub_date = (string) $item->pubDate;
 
 			if ( empty( $title ) || empty( $link ) ) {
@@ -184,7 +202,7 @@ class JobAggregator {
 			$items[] = [
 				'title'       => sanitize_text_field( $title ),
 				'url'         => esc_url_raw( $link ),
-				'description' => sanitize_textarea_field( substr( $desc, 0, 1000 ) ),
+				'description' => sanitize_textarea_field( $desc ),
 				'company'     => sanitize_text_field( $company ),
 				'location'    => sanitize_text_field( $location ),
 				'pub_date'    => sanitize_text_field( $pub_date ),
@@ -209,14 +227,14 @@ class JobAggregator {
 					continue;
 				}
 
-				$desc    = html_entity_decode( wp_strip_all_tags( (string) $entry->summary ), ENT_QUOTES, 'UTF-8' );
+				$desc    = self::clean_description( (string) $entry->summary );
 				$company = self::extract_company( $title, $desc, $entry );
 				$location = self::extract_location( $title, $desc, $entry );
 
 				$items[] = [
 					'title'       => sanitize_text_field( $title ),
 					'url'         => esc_url_raw( $link ),
-					'description' => sanitize_textarea_field( substr( $desc, 0, 1000 ) ),
+					'description' => sanitize_textarea_field( $desc ),
 					'company'     => sanitize_text_field( $company ),
 					'location'    => sanitize_text_field( $location ),
 					'pub_date'    => sanitize_text_field( (string) $entry->updated ),
@@ -230,17 +248,60 @@ class JobAggregator {
 	}
 
 	/**
-	 * Filter out listings already in the DB within the dedup window.
+	 * Filter out listings that look like jobs we already have.
+	 *
+	 * Consolidates three dedup layers so the board isn't flooded by the same
+	 * opening re-fed with slightly different URLs/titles:
+	 *
+	 *  1. Raw-table content hash within the window (fast, exact title+url).
+	 *  2. Exact apply URL already present on a published job within the window
+	 *     (catches the same listing re-posted with a stripped/changed URL).
+	 *  3. Fuzzy title+company match on a published job within the window —
+	 *     the company must match exactly (normalized) AND the title must be
+	 *     highly similar, so distinct roles at the same employer are kept.
+	 *
+	 * Checking against ALL published `job` posts (not just raw rows) also
+	 * survives manual edits, DB resets, or raw rows that were lost.
+	 *
+	 * @SuppressWarnings(PHPMD.CyclomaticComplexity)
 	 */
 	private static function filter_new( array $listings, int $dedup_days ): array {
 		global $wpdb;
-		$table     = $wpdb->prefix . 'cep_jobs_raw';
-		$cutoff    = gmdate( 'Y-m-d H:i:s', strtotime( "-{$dedup_days} days" ) );
-		$jobs_cpt  = Settings::get( 'jobs_cpt_slug', 'job' );
+		$table    = $wpdb->prefix . 'cep_jobs_raw';
+		$cutoff   = gmdate( 'Y-m-d H:i:s', strtotime( "-{$dedup_days} days" ) );
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+
+		// Load recently-published jobs once: title, company, apply URL.
+		// This is the source of truth for the URL + fuzzy checks.
+		$recent = get_posts( [
+			'post_type'      => $jobs_cpt,
+			'post_status'    => [ 'publish', 'draft', 'pending' ],
+			'posts_per_page' => 500,
+			'date_query'     => [ [ 'after' => "-{$dedup_days} days", 'inclusive' => true ] ],
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+		] );
+
+		$known_titles = [];
+		$known_urls   = [];
+		foreach ( $recent as $post_id ) {
+			$known_urls[] = (string) get_post_meta( $post_id, '_cep_job_url', true );
+			$company = (string) get_post_meta( $post_id, '_cep_job_company', true );
+			if ( '' !== $company ) {
+				$known_titles[] = [
+					'company' => self::normalize( $company ),
+					'title'   => self::normalize( (string) get_the_title( $post_id ) ),
+				];
+			}
+		}
+		// Many raw/published rows may share a URL — de-dupe to keep lookups cheap.
+		$known_urls = array_values( array_unique( array_filter( $known_urls ) ) );
 
 		$new = [];
 		foreach ( $listings as $listing ) {
-			// Primary dedup: hash seen within dedup window
+			// Layer 1 — raw-table content hash seen within the dedup window.
 			$exists = $wpdb->get_var( $wpdb->prepare(
 				"SELECT id FROM {$table} WHERE content_hash = %s AND discovered_at > %s",
 				$listing['hash'],
@@ -250,19 +311,42 @@ class JobAggregator {
 				continue;
 			}
 
-			// Secondary dedup: same source URL already in raw table (URL changed but same listing)
-			$url_exists = $wpdb->get_var( $wpdb->prepare(
-				"SELECT id FROM {$table} WHERE job_url = %s",
-				$listing['url']
-			) );
-			if ( $url_exists ) {
+			// Layer 2 — exact resolve/apply URL already on a recent published job.
+			$url = (string) $listing['url'];
+			if ( $url && in_array( $url, $known_urls, true ) ) {
 				continue;
+			}
+
+			// Layer 3 — fuzzy title + exact company against recent published jobs.
+			$listing_title   = self::normalize( (string) $listing['title'] );
+			$listing_company = self::normalize( (string) $listing['company'] );
+			if ( '' !== $listing_company && '' !== $listing_title ) {
+				foreach ( $known_titles as $known ) {
+					if ( $known['company'] !== $listing_company ) {
+						continue;
+					}
+					similar_text( $known['title'], $listing_title, $pct );
+					if ( $pct >= 80 ) {
+						continue 2;
+					}
+				}
 			}
 
 			$new[] = $listing;
 		}
 
 		return $new;
+	}
+
+	/**
+	 * Normalise a human label for fuzzy comparison: lowercase, collapse
+	 * whitespace, and strip common filler/punctuation so "Base.com: DevOps
+	 * Engineer" and "DevOps Engineer at Base.com" compare closely.
+	 */
+	private static function normalize( string $value ): string {
+		$value = strtolower( trim( $value ) );
+		$value = preg_replace( '/[^a-z0-9]+/', ' ', $value );
+		return trim( (string) preg_replace( '/\s+/', ' ', $value ) );
 	}
 
 	/**
@@ -412,13 +496,27 @@ PROMPT
 	 * Build minimal formatted job without AI (fallback).
 	 */
 	private static function minimal_format( array $listing ): array {
-		$content  = '<p>' . esc_html( $listing['description'] ) . '</p>';
-		$content .= '<p><a href="' . esc_url( $listing['url'] ) . '" target="_blank" rel="noopener noreferrer">Apply for this position →</a></p>';
+		$content = '';
+
+		// Split the cleaned description into real paragraphs (blank-line
+		// separated) instead of one run-on <p>, so the fallback output reads
+		// like a proper job listing even when the AI formatter is unavailable.
+		$paras = preg_split( "/\n\s*\n/u", trim( (string) $listing['description'] ) );
+		foreach ( $paras as $para ) {
+			$para = trim( (string) $para );
+			if ( '' !== $para ) {
+				$content .= '<p>' . esc_html( $para ) . '</p>' . "\n";
+			}
+		}
+
+		if ( '' !== trim( (string) $listing['url'] ) ) {
+			$content .= '<p><a href="' . esc_url( $listing['url'] ) . '" target="_blank" rel="noopener noreferrer">Apply for this position →</a></p>';
+		}
 
 		return [
 			'title'    => $listing['title'],
 			'content'  => $content,
-			'excerpt'  => substr( $listing['description'], 0, 200 ),
+			'excerpt'  => self::safe_truncate( (string) $listing['description'], 200 ),
 			'company'  => $listing['company'],
 			'location' => $listing['location'],
 			'job_type' => '',
@@ -462,6 +560,10 @@ PROMPT
 		}
 		update_post_meta( $post_id, '_cep_job_source', esc_url_raw( $listing['source_url'] ) );
 		update_post_meta( $post_id, '_cep_job_pub_date', sanitize_text_field( $listing['pub_date'] ) );
+		// Store the exact expiry so the schema's validThrough and the expiry
+		// cleanup always agree. Falls back to post date + default window.
+		$expiry_days = self::job_expiry_days();
+		update_post_meta( $post_id, '_cep_job_expires_at', gmdate( 'Y-m-d H:i:s', strtotime( get_post_field( 'post_date_gmt', $post_id ) ) + $expiry_days * DAY_IN_SECONDS ) );
 
 		// Tags
 		if ( ! empty( $formatted['tags'] ) && is_array( $formatted['tags'] ) ) {
@@ -474,6 +576,54 @@ PROMPT
 	}
 
 	// ─── Helpers ─────────────────────────────────────────────────────────────
+
+	/**
+	 * Normalise a raw RSS/Atom job description into clean, well-separated
+	 * plain text. wp_strip_all_tags() concatenates adjacent elements with no
+	 * separator (e.g. <p>&hellip;experience.</p><p>We are&hellip;</p> becomes
+	 * "experience.We are"), so we introduce whitespace at element boundaries
+	 * before stripping. The result is also trimmed to a sane length at a word
+	 * boundary instead of being hard-cut mid-sentence.
+	 *
+	 * @param string $raw Raw feed description (may contain HTML).
+	 * @return string
+	 */
+	private static function clean_description( string $raw ): string {
+		$raw = (string) $raw;
+
+		// Preserve paragraph/heading/list boundaries as blank-line separators.
+		$raw = (string) preg_replace( '#</p>\s*<p[^>]*>#i', "\n\n", $raw );
+		$raw = (string) preg_replace( '#<br\s*/?>#i', "\n", $raw );
+		$raw = (string) preg_replace( '#</(?:li|h[1-6]|div|dd)>#i', "\n\n", $raw );
+
+		// Insert a space between any remaining adjacent tags so inline text
+		// (e.g. <b>Experience</b>Required) does not jam together.
+		$raw = (string) preg_replace( '#>\s*<#', '> <', $raw );
+
+		$text = html_entity_decode( wp_strip_all_tags( $raw ), ENT_QUOTES, 'UTF-8' );
+		$text = trim( (string) preg_replace( '/[ \t\r\x{00a0}]+/u', ' ', $text ) );
+		$text = (string) preg_replace( "/\n{3,}/u", "\n\n", $text );
+		$text = (string) preg_replace( "/[ \t]+\n/u", "\n", $text );
+
+		return self::safe_truncate( $text, 1000 );
+	}
+
+	/**
+	 * Truncate a string at a word boundary within a character budget, leaving
+	 * a trailing ellipsis instead of cutting mid-word.
+	 *
+	 * @param string $text  Text to truncate.
+	 * @param int    $limit Max characters (including the ellipsis surrogate).
+	 * @return string
+	 */
+	private static function safe_truncate( string $text, int $limit ): string {
+		if ( mb_strlen( $text ) <= $limit ) {
+			return $text;
+		}
+		$cut = mb_substr( $text, 0, max( 1, $limit - 1 ) );
+		$cut = (string) preg_replace( '/\s+\S*$/u', '', $cut );
+		return trim( (string) $cut ) . '…';
+	}
 
 	private static function extract_company( string $title, string $desc, $item ): string {
 		// Many job feeds use "Job Title at Company" or "Company: Job Title" formats
@@ -734,6 +884,124 @@ PROMPT
 			wp_remote_get( $ping, [ 'timeout' => 10, 'blocking' => false, 'user-agent' => 'Mozilla/5.0' ] );
 		}
 		Logger::log( "Pinged search engines with sitemap {$sitemap}", 'info', 'job_aggregator' );
+	}
+
+	/**
+	 * Number of days a job stays published before it is expired. Defaults to
+	 * 30 so it matches the schema's validThrough window, keeping the sitemap
+	 * and JobPosting markup honest (Google drops sites that leave expired
+	 * jobs indexed). Overridable via the cep_job_expiry_days filter.
+	 *
+	 * @return int
+	 */
+	private static function job_expiry_days(): int {
+		$days = (int) apply_filters( 'cep_job_expiry_days', (int) Settings::get( 'jobs_expire_days', 30 ) );
+		return $days < 1 ? 30 : $days;
+	}
+
+	/**
+	 * Expire jobs that have been published for longer than the expiry window.
+	 * Unpublishing removes them from the archive, the sitemap and the single
+	 * page (404), which is exactly what Google's JobPosting policy requires —
+	 * stale listings are the leading cause of lost Jobs rich results.
+	 *
+	 * @return int Number of jobs expired this run.
+	 */
+	public static function expire_expired(): int {
+		if ( ! Settings::is_enabled( 'jobs_autopilot_enabled' ) ) {
+			return 0;
+		}
+
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+		$days     = self::job_expiry_days();
+		$cutoff   = gmdate( 'Y-m-d H:i:s', time() - $days * DAY_IN_SECONDS );
+
+		$ids = get_posts( [
+			'post_type'      => $jobs_cpt,
+			'post_status'    => 'publish',
+			'posts_per_page' => -1,
+			'fields'         => 'ids',
+			'no_found_rows'  => true,
+			'date_query'     => [ [ 'before' => $cutoff, 'inclusive' => true ] ],
+		] );
+
+		$expired = 0;
+		foreach ( $ids as $id ) {
+			wp_update_post( [ 'ID' => $id, 'post_status' => 'draft' ] );
+			update_post_meta( $id, '_cep_job_expired', time() );
+			$expired++;
+		}
+
+		if ( $expired ) {
+			Logger::log( "Job expiry: unpublished {$expired} job(s) older than {$days} days", 'info', 'job_aggregator' );
+		}
+		return $expired;
+	}
+
+	/**
+	 * Regenerate the formatted content/meta of an already-published job.
+	 *
+	 * Used to repair posts created before the description-cleaning fixes: it
+	 * re-fetches the full listing from the source URL, then runs the normal
+	 * AI formatting pipeline (falling back to clean paragraphs) and writes
+	 * the result back. Returns the post ID on success, else a WP_Error.
+	 *
+	 * @param int $post_id
+	 * @return int|\WP_Error
+	 */
+	public static function reformat( int $post_id ) {
+		$post = get_post( $post_id );
+		if ( ! $post || Settings::get( 'jobs_cpt_slug', 'job' ) !== $post->post_type ) {
+			return new \WP_Error( 'bad_post', 'Not a job post' );
+		}
+
+		$listing = [
+			'title'       => $post->post_title,
+			'company'     => (string) get_post_meta( $post_id, '_cep_job_company', true ),
+			'location'    => (string) get_post_meta( $post_id, '_cep_job_location', true ),
+			'url'         => (string) get_post_meta( $post_id, '_cep_job_url', true ),
+			'description' => trim( (string) wp_strip_all_tags( $post->post_content ) ),
+			'source_url'  => (string) get_post_meta( $post_id, '_cep_job_source', true ),
+			'pub_date'    => (string) get_post_meta( $post_id, '_cep_job_pub_date', true ),
+		];
+
+		// Prefer the full source description over the (possibly truncated)
+		// stored content so regeneration repairs the cut-off copy too.
+		if ( '' !== $listing['url'] ) {
+			$details = \ContentEnginePro\Jobs\CareerScraper::fetch_details( $listing['url'] );
+			$full    = trim( (string) ( $details['description'] ?? '' ) );
+			if ( strlen( trim( (string) wp_strip_all_tags( $full ) ) ) > 40 ) {
+				$listing['description'] = self::clean_description( $full );
+			}
+		}
+
+		$formatted = self::format_listing( $listing, NicheManager::get_active() );
+		if ( is_wp_error( $formatted ) || empty( $formatted['title'] ) ) {
+			$formatted = self::minimal_format( $listing );
+		}
+
+		$update = [
+			'ID'           => $post_id,
+			'post_title'   => sanitize_text_field( $formatted['title'] ?? $listing['title'] ),
+			'post_content' => wp_kses_post( $formatted['content'] ?? '' ),
+			'post_excerpt' => sanitize_textarea_field( $formatted['excerpt'] ?? '' ),
+		];
+		// Regenerate the slug when the cleaned title/company produce a better one.
+		$company = $formatted['company'] ?? $listing['company'];
+		$slug    = self::build_job_slug( $company, $formatted['title'] ?? $listing['title'] );
+		if ( $slug && get_post_field( 'post_name', $post_id ) !== $slug ) {
+			$update['post_name'] = wp_unique_post_slug( $slug, $post_id, get_post_status( $post_id ), $post->post_type, 0 );
+		}
+		wp_update_post( $update );
+
+		update_post_meta( $post_id, '_cep_job_company', sanitize_text_field( $company ) );
+		update_post_meta( $post_id, '_cep_job_location', sanitize_text_field( $formatted['location'] ?? $listing['location'] ) );
+		update_post_meta( $post_id, '_cep_job_type', sanitize_text_field( $formatted['job_type'] ?? '' ) );
+		update_post_meta( $post_id, '_cep_job_salary', sanitize_text_field( $formatted['salary'] ?? '' ) );
+		update_post_meta( $post_id, '_cep_job_expires_at', gmdate( 'Y-m-d H:i:s', strtotime( get_post_field( 'post_date_gmt', $post_id ) ) + self::job_expiry_days() * DAY_IN_SECONDS ) );
+
+		do_action( 'cep_job_reformatted', $post_id, $listing, $formatted );
+		return $post_id;
 	}
 
 	/**

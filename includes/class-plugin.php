@@ -156,6 +156,9 @@ class Plugin {
 		add_action( 'cep_job_published', [ Jobs\JobAggregator::class, 'ping_search_engines' ], 10, 1 );
 		// Weekly SEO self-audit for the job CPT (schema/meta/excerpt/index).
 		add_action( 'cep_jobs_seo_audit', [ Jobs\JobAggregator::class, 'seo_audit' ], 10, 0 );
+		// Daily expiry of jobs past their validThrough/window so the board
+		// never leaves stale listings indexed (protects Google Jobs results).
+		add_action( 'cep_jobs_expire', [ Jobs\JobAggregator::class, 'expire_expired' ], 10, 0 );
 
 		// Trending topics autopilot
 		add_action( 'cep_trending_autopilot', [ Trending\TrendingAutopilot::class, 'run' ], 10, 0 );

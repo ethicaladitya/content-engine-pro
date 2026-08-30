@@ -64,6 +64,7 @@ class Scheduler {
 		) {
 			$events[] = [ 'hook' => 'cep_jobs_aggregate', 'recurrence' => 'twicedaily', 'start_offset' => 1 * HOUR_IN_SECONDS ];
 			$events[] = [ 'hook' => 'cep_jobs_seo_audit', 'recurrence' => 'weekly', 'start_offset' => 2 * HOUR_IN_SECONDS ];
+			$events[] = [ 'hook' => 'cep_jobs_expire',   'recurrence' => 'daily',  'start_offset' => 3 * HOUR_IN_SECONDS ];
 		}
 
 		// Trending topics autopilot — runs twice daily, one hour before article autopilot

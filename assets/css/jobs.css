@@ -4,17 +4,17 @@
    Constraints:
      - No color-mix() — Hummingbird strips it from the served bundle
      - No SVG data-URIs — Hummingbird strips % encoded content
-     - Accent: indigo #6366f1 → violet #8b5cf6 gradient
+      - Accent: rose #e2697c → crimson #d63451 gradient (site's red identity)
      - Must work in light AND dark mode
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */
 
 :root {
-	--cep-accent: #6366f1;
-	--cep-accent-dark: #4f46e5;
-	--cep-accent-2: #8b5cf6;
-	--cep-accent-rgb: 99, 102, 241;
+	--cep-accent: #e2697c;
+	--cep-accent-dark: #c22945;
+	--cep-accent-2: #d63451;
+	--cep-accent-rgb: 226, 105, 124;
 
 	--cep-bg: #faf7f0;
 	--cep-surface: #fffdf9;
@@ -63,13 +63,12 @@
 
 .cep-job-filter {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
 	gap: 0.75rem;
-	margin: 0 0 2rem;
-	padding: 1rem 1.25rem;
+	margin: 0 0 1.5rem;
+	padding: 0.85rem 1rem;
 	border: 1px solid var(--cep-line);
-	border-radius: 16px;
+	border-radius: 14px;
 	background: var(--cep-surface);
 	box-shadow: 0 1px 3px var(--cep-shadow),
 		0 8px 24px -12px var(--cep-shadow-strong);
@@ -78,23 +77,25 @@
 .cep-job-filter__row {
 	display: flex;
 	flex: 1 1 auto;
-	flex-wrap: wrap;
-	gap: 0.6rem;
 	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
 }
 
 /* ── Search input ─────────────────────────────────────────────────────── */
 
 .cep-job-filter__search {
-	flex: 2 1 240px;
-	min-width: 180px;
-	height: 44px;
-	padding: 0 0.75rem 0 2.5rem;
+	flex: 1 1 auto;
+	min-width: 0;
+	width: 100%;
+	height: 38px;
+	padding: 0 0.6rem 0 2.2rem;
 	border: 1px solid var(--cep-line);
-	border-radius: 10px;
+	border-radius: 9px;
 	background: var(--cep-bg);
 	color: var(--cep-text);
 	font: inherit;
+	font-size: 0.9rem;
 	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -105,17 +106,17 @@
 /* Search icon via pseudo-element (no SVG data-URI — Hummingbird strips it) */
 .cep-job-filter__search-wrap {
 	position: relative;
-	flex: 2 1 240px;
-	min-width: 180px;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .cep-job-filter__search-wrap::before {
 	content: "";
 	position: absolute;
-	left: 14px;
+	left: 13px;
 	top: 50%;
-	width: 7px;
-	height: 7px;
+	width: 6px;
+	height: 6px;
 	margin-top: -5px;
 	border: 2px solid var(--cep-text-3);
 	border-radius: 50%;
@@ -126,11 +127,11 @@
 .cep-job-filter__search-wrap::after {
 	content: "";
 	position: absolute;
-	left: 23px;
+	left: 21px;
 	top: 50%;
-	width: 8px;
+	width: 7px;
 	height: 2px;
-	margin-top: 4px;
+	margin-top: 3px;
 	border-top: 2px solid var(--cep-text-3);
 	transform: rotate(45deg);
 	pointer-events: none;
@@ -145,15 +146,19 @@
 /* ── Select dropdowns ─────────────────────────────────────────────────── */
 
 .cep-job-filter__select {
-	height: 44px;
-	padding: 0 2.3rem 0 0.85rem;
-	max-width: 230px;
+	height: 38px;
+	width: auto;
+	max-width: 170px;
+	padding: 0 2rem 0 0.7rem;
 	border: 1px solid var(--cep-line);
-	border-radius: 10px;
+	border-radius: 9px;
 	background: var(--cep-bg);
 	color: var(--cep-text);
 	font: inherit;
+	font-size: 0.85rem;
 	cursor: pointer;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	transition: border-color 0.15s ease, box-shadow 0.15s ease;
 	/* Native chevron — no SVG data-URI */
 	-webkit-appearance: none;
@@ -166,16 +171,17 @@
 .cep-job-filter__select-wrap {
 	position: relative;
 	display: inline-block;
-	max-width: 230px;
+	max-width: 170px;
+	flex: 0 1 auto;
 }
 
 .cep-job-filter__select-wrap::after {
 	content: "";
 	position: absolute;
-	right: 14px;
+	right: 13px;
 	top: 50%;
-	width: 7px;
-	height: 7px;
+	width: 6px;
+	height: 6px;
 	margin-top: -3px;
 	border-right: 2px solid var(--cep-text-3);
 	border-bottom: 2px solid var(--cep-text-3);
@@ -186,7 +192,7 @@
 
 .cep-job-filter__select-wrap .cep-job-filter__select {
 	width: 100%;
-	padding-right: 2.5rem;
+	padding-right: 2.1rem;
 	max-width: none;
 }
 
@@ -214,13 +220,14 @@
 .cep-job-filter__submit,
 .cep-btn--primary {
 	flex: 0 0 auto;
-	height: 44px;
-	padding: 0 1.5rem;
+	height: 38px;
+	padding: 0 1.1rem;
 	border: none;
-	border-radius: 10px;
+	border-radius: 9px;
 	background: linear-gradient(135deg, var(--cep-accent), var(--cep-accent-2));
 	color: #fff;
 	font: inherit;
+	font-size: 0.85rem;
 	font-weight: 600;
 	cursor: pointer;
 	box-shadow: 0 4px 14px -4px rgba(var(--cep-accent-rgb), 0.5);
@@ -243,8 +250,8 @@
 /* ── Clear filters link ───────────────────────────────────────────────── */
 
 .cep-job-filter__clear {
-	margin-left: auto;
-	font-size: 0.85rem;
+	margin-left: 0;
+	font-size: 0.8rem;
 	color: var(--cep-text-2);
 	text-decoration: none;
 	white-space: nowrap;
@@ -271,8 +278,17 @@
 	gap: 0.85rem;
 }
 
-/* Card wrapper — inherits .as-card base from child theme */
-.cep-jobs-archive .as-card {
+/* Jobs have no category media banner — suppress the child theme's
+   generated `</>` panel on job cards while keeping it on blog cards. */
+body.post-type-archive-job .wp-block-post-template .as-card:not(:has(.wp-block-post-featured-image))::before,
+body.single-job .wp-block-post-template .as-card:not(:has(.wp-block-post-featured-image))::before {
+	content: none;
+	display: none;
+}
+
+/* Card wrapper — inherits .as-card base from child theme. Scoped to the
+   job archive body class (FSE `wp:query` template has no .cep-jobs-archive). */
+body.post-type-archive-job .as-card {
 	position: relative;
 	background: var(--cep-surface);
 	border: 1px solid var(--cep-line);
@@ -286,12 +302,12 @@
 
 /* The card container is not itself a link — the post title is. Communicate
    interactivity via the title link rather than making the whole card a link. */
-.cep-jobs-archive .as-card:has(.wp-block-post-title a:focus-visible) {
+body.post-type-archive-job .as-card:has(.wp-block-post-title a:focus-visible) {
 	border-color: var(--cep-accent);
 	box-shadow: 0 0 0 4px rgba(var(--cep-accent-rgb), 0.25);
 }
 
-.cep-jobs-archive .as-card:hover {
+body.post-type-archive-job .as-card:hover {
 	transform: translateY(-3px);
 	box-shadow: 0 10px 34px -10px rgba(var(--cep-accent-rgb), 0.16),
 		0 4px 12px var(--cep-shadow);
@@ -299,25 +315,32 @@
 	background: var(--cep-surface);
 }
 
-.cep-jobs-archive .as-card:hover .wp-block-post-title a {
+body.post-type-archive-job .as-card:hover .wp-block-post-title a {
 	color: var(--cep-accent);
 }
 
-/* Company badge — indigo-violet gradient monogram */
-.cep-jobs-archive .as-co-badge,
+/* Company logo + name wrapper */
+.as-co {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex: 0 0 auto;
+}
+
+/* Company badge — rose-crimson gradient monogram */
 .as-co-badge {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	width: 2.4rem;
 	height: 2.4rem;
+	flex: 0 0 auto;
 	border-radius: 10px;
 	background: linear-gradient(135deg, var(--cep-accent), var(--cep-accent-2));
 	color: #fff;
 	font-weight: 700;
 	font-size: 0.95rem;
 	line-height: 1;
-	flex-shrink: 0;
 }
 
 /* Image variant of the badge */
@@ -334,81 +357,79 @@
 	border-radius: 7px;
 }
 
-.cep-jobs-archive .as-co-name {
+.as-co-name {
 	font-weight: 600;
 	color: var(--cep-text);
 	font-size: 0.85rem;
 }
 
-.cep-jobs-archive .as-co-meta {
+.as-co-meta {
 	margin: 0.2rem 0 0;
 	font-size: 0.82rem;
 	color: var(--cep-text-2);
 }
 
 /* Card title — match the site serif for headings */
-.cep-jobs-archive .as-card .wp-block-post-title,
-.cep-jobs-archive .wp-block-post-title {
+body.post-type-archive-job .as-card .wp-block-post-title,
+body.post-type-archive-job .wp-block-post-title {
 	font-size: 1.35rem;
 	font-weight: 600;
 	line-height: 1.25;
 	letter-spacing: -0.01em;
 }
 
-.cep-jobs-archive .wp-block-post-title a {
+body.post-type-archive-job .wp-block-post-title a {
 	color: var(--cep-text);
 	text-decoration: none;
 	transition: color 0.15s ease;
 	border-radius: 4px;
 }
 
-.cep-jobs-archive .wp-block-post-title a:hover {
+body.post-type-archive-job .wp-block-post-title a:hover {
 	color: var(--cep-accent);
 }
 
-.cep-jobs-archive .wp-block-post-title a:focus-visible {
+body.post-type-archive-job .wp-block-post-title a:focus-visible {
 	outline: none;
 	box-shadow: 0 0 0 3px rgba(var(--cep-accent-rgb), 0.4);
 }
 
 /* Post date — monospace meta */
-.cep-jobs-archive .wp-block-post-date {
+body.post-type-archive-job .wp-block-post-date {
 	font-family: var(--wp--preset--font-family--mono, "Fira Code", monospace);
 	font-size: 0.78rem;
 	color: var(--cep-text-3);
 	margin-top: 0.3rem;
 }
 
-.cep-jobs-archive .wp-block-post-date time {
+body.post-type-archive-job .wp-block-post-date time {
 	color: inherit;
 }
 
 /* Empty state */
-.cep-jobs-archive__empty,
-.wp-block-group.as-empty {
+.wp-block-group.as-empty,
+body.post-type-archive-job .wp-block-group.as-empty {
 	text-align: center;
 	padding: 3.5rem 1.5rem;
 	border: 1px dashed var(--cep-border-2);
 	border-radius: 16px;
 	background: var(--cep-surface);
-	margin: 0.5rem 0 2rem;
 	max-width: 34rem;
-	margin-left: auto;
-	margin-right: auto;
+	margin: 0.5rem auto 2rem;
 }
 
-.wp-block-group.as-empty h2 {
+body.post-type-archive-job .wp-block-group.as-empty h2 {
 	color: var(--cep-text);
 	margin: 0 0 0.5rem;
 	letter-spacing: -0.01em;
 }
 
-.wp-block-group.as-empty p {
+body.post-type-archive-job .wp-block-group.as-empty p {
 	color: var(--cep-text-2);
 	margin: 0 0 0.75rem;
 }
 
-.wp-block-group.as-empty .wp-block-buttons {
+body.post-type-archive-job .wp-block-group.as-empty .wp-block-buttons {
 	justify-content: center;
 	margin-top: 1rem;
 }
@@ -484,7 +505,9 @@
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	align-items: center;
-	margin: 0 0 1.5rem;
+	/* Top offset gives the title above clear breathing room when the meta sits
+	   in the FSE single-job template header (its group gap alone is too tight). */
+	margin: 1.25rem 0 1.5rem;
 }
 
 .cep-job-fact,
@@ -545,6 +568,13 @@
 	cursor: pointer;
 }
 
+/* The apply button shares a rule that gives it a bottom margin; when it sits
+   inline inside the meta chip row that margin throws off its vertical
+   centering against the chips. Reset it there so they align cleanly. */
+.as-job-meta .as-apply-btn {
+	margin: 0;
+}
+
 .as-apply-btn:hover {
 	transform: translateY(-2px);
 	box-shadow: 0 8px 24px -4px rgba(var(--cep-accent-rgb), 0.55);
@@ -580,6 +610,31 @@
 	line-height: 1.72;
 	font-size: 1.02rem;
 	color: var(--cep-text);
+}
+
+/* "Headquarters: <loc>" meta line pulled out of the harder body copy — small,
+   muted, distinct from prose so the scraped location reads as a label. */
+p.as-job-hq {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.4rem;
+	margin: 0 0 1.4rem;
+	padding: 0.6rem 0.95rem;
+	border-radius: 10px;
+	background: var(--cep-surface-2);
+	border: 1px solid var(--cep-line);
+	color: var(--cep-text-2);
+	font-size: 0.88rem;
+	line-height: 1.5;
+}
+
+p.as-job-hq strong {
+	color: var(--cep-text);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	font-size: 0.72rem;
 }
 
 .cep-single-job__content p,
@@ -812,7 +867,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
-	.cep-jobs-archive .as-card,
+	body.post-type-archive-job .as-card,
 	.cep-job-filter__submit,
 	.cep-btn--primary,
 	.as-apply-btn,
@@ -856,12 +911,12 @@
 	}
 
 	/* Cards — stack badge above title on mobile */
-	.cep-jobs-archive .as-card {
+	body.post-type-archive-job .as-card {
 		flex-direction: column;
 		gap: 0.5rem;
 	}
 
-	.cep-jobs-archive .as-co-badge {
+	body.post-type-archive-job .as-card .as-co-badge {
 		width: 2rem;
 		height: 2rem;
 		font-size: 0.85rem;

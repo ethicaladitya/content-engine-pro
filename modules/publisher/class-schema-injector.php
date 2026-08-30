@@ -242,13 +242,10 @@ class SchemaInjector {
                 'title'           => get_the_title( $id ),
                 'description'     => $desc,
                 'datePosted'      => get_the_date( 'c', $id ),
-                'validThrough'    => gmdate( 'c', strtotime( $post->post_date_gmt ) + 30 * DAY_IN_SECONDS ),
+                'validThrough'    => $this->job_valid_through( $post, $id ),
                 'employmentType'  => $this->map_employment_type( $type ),
                 'hiringOrganization' => $hiring,
-                'jobLocation'     => [
-                    '@type' => 'Place',
-                    'address' => $this->build_address( $loc, $country ),
-                ],
+                'jobLocation'     => $this->build_job_location( $loc, $country ),
                 'directApply'     => $apply ? [ '@type' => 'URL', 'url' => esc_url( $apply ) ] : false,
             ];
 
@@ -267,13 +264,47 @@ class SchemaInjector {
             return $schema;
         }
 
+        /**
+         * Resolve the validThrough date for a job. Prefers the stored expiry
+         * written at publish time (keeps the schema and the expiry cron in
+         * sync); falls back to post date + 30 days for older jobs that predate
+         * the stored meta.
+         */
+        private function job_valid_through( \WP_Post $post, int $id ): string {
+            $stored = (string) get_post_meta( $id, '_cep_job_expires_at', true );
+            $ts     = $stored ? strtotime( $stored ) : 0;
+            if ( ! $ts ) {
+                $ts = strtotime( $post->post_date_gmt ) + 30 * DAY_IN_SECONDS;
+            }
+            return gmdate( 'c', $ts );
+        }
+
+        /**
+         * Build the jobLocation node. For remote/unknown-location jobs with no
+         * meaningful country we omit the (otherwise malformed, empty) address
+         * object and rely on TELECOMMUTE + applicantLocationRequirements, which
+         * Google's JobPosting spec accepts for remote roles.
+         */
+        private function build_job_location( string $loc, string $country ): array {
+            $node = [ '@type' => 'Place' ];
+            $addr = $this->build_address( $loc, $country );
+            if ( $addr ) {
+                $node['address'] = $addr;
+            }
+            return $node;
+        }
+
         private function build_address( string $loc, string $country ): array {
+            // No locatable country → no postal address (remote / unspecified).
+            if ( '' === $country ) {
+                return [];
+            }
             $parts = preg_split( '/\s*,\s*/', trim( $loc ) );
             $city  = $parts[0] ?? '';
             return [
                 '@type'           => 'PostalAddress',
                 'addressLocality' => $city,
-                'addressCountry'  => $country ?: '',
+                'addressCountry'  => $country,
             ];
         }
 

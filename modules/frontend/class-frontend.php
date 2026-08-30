@@ -47,6 +47,7 @@ class Frontend {
 			// (pre_get_posts + query_loop_block_query_vars for wp:query) and
 			// inject the filter bar into the block archive via render_block.
 			add_action( 'pre_get_posts',          [ $this, 'job_archive_filter' ] );
+			add_action( 'init',                   [ $this, 'register_job_blocks' ] );
 			add_filter( 'query_loop_block_query_vars', [ $this, 'job_block_query_vars' ], 10, 2 );
 			add_filter( 'render_block',           [ $this, 'inject_job_filter_bar' ], 10, 2 );
 		}
@@ -55,6 +56,78 @@ class Frontend {
 	// ─────────────────────────────────────────────────────────────────────────
 	// Jobs assets (filter bar + archive styling)
 	// ─────────────────────────────────────────────────────────────────────────
+
+	/**
+	 * Register dynamic blocks used by the FSE job archive template.
+	 *
+	 * Shortcodes inside a wp:post-template block render via a wpautop/shortcode
+	 * pass that runs outside the loop, so get_the_ID() is unreliable there.
+	 * These dynamic blocks instead resolve the post from $block->context['postId']
+	 * — the same mechanism core/post-title uses — so each card renders its own
+	 * company badge and location/type meta correctly.
+	 */
+	public function register_job_blocks(): void {
+		register_block_type(
+			'cep/job-logo',
+			[ 'render_callback' => [ $this, 'render_job_logo_block' ] ]
+		);
+		register_block_type(
+			'cep/job-meta-inline',
+			[ 'render_callback' => [ $this, 'render_job_meta_inline_block' ] ]
+		);
+	}
+
+	/**
+	 * Render the company badge + name for the current card's job.
+	 */
+	public function render_job_logo_block( array $attributes, string $content, \WP_Block $block ): string {
+		$id = (int) ( $block->context['postId'] ?? 0 );
+		if ( ! $id ) {
+			return '';
+		}
+
+		$company = (string) get_post_meta( $id, '_cep_job_company', true );
+		if ( '' === trim( $company ) ) {
+			$source = (string) get_post_meta( $id, '_cep_job_source', true );
+			$host   = wp_parse_url( $source, PHP_URL_HOST );
+			if ( $host ) {
+				$company = preg_replace( '/^www\./', '', (string) $host );
+			}
+		}
+		$company = trim( $company );
+		if ( '' === $company ) {
+			return '';
+		}
+
+		$initial = mb_strtoupper( mb_substr( $company, 0, 1 ) );
+		$logo    = (string) get_post_meta( $id, '_cep_job_logo', true );
+		if ( '' !== trim( $logo ) && wp_http_validate_url( $logo ) ) {
+			$badge = '<span class="as-co-badge as-co-badge--img">'
+				. '<img src="' . esc_url( $logo ) . '" alt="' . esc_attr( $company ) . '" loading="lazy" decoding="async"></span>';
+		} else {
+			$badge = '<span class="as-co-badge" aria-hidden="true">' . esc_html( $initial ) . '</span>';
+		}
+
+		return '<span class="as-co">' . $badge . '<span class="as-co-name">' . esc_html( $company ) . '</span></span>';
+	}
+
+	/**
+	 * Render inline "Location · Type" meta for the current card's job.
+	 */
+	public function render_job_meta_inline_block( array $attributes, string $content, \WP_Block $block ): string {
+		$id = (int) ( $block->context['postId'] ?? 0 );
+		if ( ! $id ) {
+			return '';
+		}
+		$location = trim( (string) get_post_meta( $id, '_cep_job_location', true ) );
+		$type     = trim( (string) get_post_meta( $id, '_cep_job_type', true ) );
+
+		$parts = array_filter( [ $location, $type ] );
+		if ( empty( $parts ) ) {
+			return '';
+		}
+		return '<p class="as-co-meta">' . esc_html( implode( ' · ', $parts ) ) . '</p>';
+	}
 
 	public function job_assets(): void {
 		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
@@ -296,6 +369,102 @@ class Frontend {
 		}
 
 		return $query_vars;
+	}
+
+	public function diversify_job_archive_disabled( array $posts, \WP_Query $query ): array {
+		static $in_progress = false;
+		if ( $in_progress || is_admin() ) {
+			return $posts;
+		}
+		$jobs_cpt = Settings::get( 'jobs_cpt_slug', 'job' );
+		if ( ! is_post_type_archive( $jobs_cpt ) ) {
+			return $posts;
+		}
+		$qt = $query->get( 'post_type' );
+		$is_job_q = is_array( $qt ) ? in_array( $jobs_cpt, $qt, true ) : ( $qt === $jobs_cpt || '' === (string) $qt );
+		if ( ! $is_job_q && ! $query->is_main_query() ) {
+			return $posts;
+		}
+		if ( isset( $_GET['company'] ) && '' !== trim( (string) $_GET['company'] ) ) {
+			return $posts;
+		}
+		if ( count( $posts ) < 2 ) {
+			return $posts;
+		}
+		$ppp  = (int) $query->get( 'posts_per_page' );
+		if ( $ppp < 1 ) {
+			$ppp = 12;
+		}
+		$paged = max( 1, (int) $query->get( 'paged' ) ?: (int) get_query_var( 'paged', 1 ) );
+		$total = (int) $query->found_posts;
+		if ( $total < 1 ) {
+			$total = count( $posts );
+		}
+		$cap = 3;
+		$need = $ppp;
+		if ( $total > $ppp ) {
+			$need = min( 200, $total );
+		}
+		$pool_q = new \WP_Query( [
+			'post_type'      => $jobs_cpt,
+			'post_status'    => 'publish',
+			'posts_per_page' => $need,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'no_found_rows'  => true,
+			'meta_query'     => $query->get( 'meta_query' ) ?: [],
+		] );
+		$pool = $pool_q->posts;
+		if ( count( $pool ) < 2 ) {
+			return $posts;
+		}
+		$buckets = [];
+		$order   = [];
+		foreach ( $pool as $p ) {
+			$co = trim( (string) get_post_meta( $p->ID, '_cep_job_company', true ) );
+			if ( '' === $co ) {
+				$co = '__unknown__';
+			}
+			if ( ! isset( $buckets[ $co ] ) ) {
+				$buckets[ $co ] = [];
+				$order[]        = $co;
+			}
+			$buckets[ $co ][] = $p;
+		}
+		shuffle( $order );
+		$diversified = [];
+		$idx         = array_fill_keys( $order, 0 );
+		$added       = [];
+		$progress    = true;
+		while ( $progress ) {
+			$progress = false;
+			foreach ( $order as $co ) {
+				$i = $idx[ $co ];
+				if ( $i >= count( $buckets[ $co ] ) ) {
+					continue;
+				}
+				if ( ( $added[ $co ] ?? 0 ) >= $cap && count( $diversified ) < $need - 4 ) {
+					continue;
+				}
+				$diversified[]      = $buckets[ $co ][ $i ];
+				$idx[ $co ]++;
+				$added[ $co ] = ( $added[ $co ] ?? 0 ) + 1;
+				$progress     = true;
+				if ( count( $diversified ) >= $need ) {
+					break 2;
+				}
+			}
+		}
+		foreach ( $order as $co ) {
+			for ( $i = $idx[ $co ]; $i < count( $buckets[ $co ] ); $i++ ) {
+				$diversified[] = $buckets[ $co ][ $i ];
+				if ( count( $diversified ) >= $need ) {
+					break 2;
+				}
+			}
+		}
+		$offset = ( $paged - 1 ) * $ppp;
+		return array_slice( $diversified, $offset, $ppp );
 	}
 
 	/**
