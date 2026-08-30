@@ -74,23 +74,6 @@ class Settings {
 		'providers_cpt_singular'       => 'Provider',
 		'providers_cpt_plural'         => 'Providers',
 
-		// ── Deals Engine ─────────────────────────────────────────────────────
-		'deals_enabled'                => '1',
-		'deals_autopilot_enabled'      => '1',
-		'deals_cpt_slug'               => 'deal',
-		'deals_cpt_singular'           => 'Deal',
-		'deals_cpt_plural'             => 'Deals',
-		'deals_cpt_archive_slug'       => 'deals',
-		'deals_tax_slug'               => 'deal-category',
-		'deals_max_per_run'            => '2',
-		'deals_min_quality_score'      => '40',
-		'deals_min_discount_pct'       => '10',
-		'deals_check_interval'         => '360',
-		'deals_expiry_action'          => 'badge',
-		'deals_default_region'         => 'US',
-		'deals_auto_affiliate'         => '1',
-		'deals_price_refresh_hours'    => '12',
-
 		// ── Display / UI ─────────────────────────────────────────────────────
 		'posts_per_page'               => '12',
 		'excerpt_length'               => '30',

@@ -244,12 +244,19 @@ class ArticleAutopilot {
 		}
 
 		// 4. Assign primary taxonomy (WP built-in 'category' by default).
+		$tax = Settings::get( 'primary_tax_slug', 'category' );
 		if ( ! empty( $article['category'] ) ) {
-			$tax     = Settings::get( 'primary_tax_slug', 'category' );
 			$term_id = self::resolve_term( $article['category'], $tax );
-			if ( $term_id ) {
-				wp_set_post_terms( $post_id, [ $term_id ], $tax );
-			}
+		}
+		// Fallback so posts never land in the default 'Uncategorized' term
+		// when the AI provides no category. Prefer a configured default, then
+		// fall back to the 'ai' category.
+		if ( empty( $term_id ) ) {
+			$default_cat = Settings::get( 'default_article_category', 'ai' );
+			$term_id     = self::resolve_term( (string) $default_cat, $tax );
+		}
+		if ( ! empty( $term_id ) ) {
+			wp_set_post_terms( $post_id, [ $term_id ], $tax );
 		}
 
 		// 5. Assign tags (WP built-in 'post_tag' by default).

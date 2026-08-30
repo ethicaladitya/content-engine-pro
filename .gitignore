@@ -1,1 +1,8 @@
-/.claude
+vendor/
+node_modules/
+*.log
+*.sql
+wp-config*.php
+.env
+.DS_Store
+*.bak

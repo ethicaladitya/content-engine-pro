@@ -214,65 +214,6 @@ class Activator {
 			KEY idx_seo_run_started (started_at)
 		) {$charset};";
 
-		// ── Deals Engine ─────────────────────────────────────────────────────
-
-		// Deal feed sources
-		$sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cep_deal_sources (
-			id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-			name            VARCHAR(255) NOT NULL,
-			feed_url        VARCHAR(500) NOT NULL,
-			source_type     ENUM('rss','api','scrape') NOT NULL DEFAULT 'rss',
-			provider        VARCHAR(60) NOT NULL DEFAULT 'generic_rss',
-			category        VARCHAR(100) NOT NULL DEFAULT 'general',
-			region          VARCHAR(10) NOT NULL DEFAULT 'US',
-			api_config      LONGTEXT NULL,
-			check_interval  INT NOT NULL DEFAULT 360,
-			is_active       TINYINT(1) NOT NULL DEFAULT 1,
-			last_checked_at DATETIME NULL,
-			consecutive_fails INT NOT NULL DEFAULT 0,
-			created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			PRIMARY KEY (id),
-			UNIQUE KEY idx_feed_url (feed_url(191)),
-			KEY idx_active_provider (is_active, provider)
-		) {$charset};";
-
-		// Deals queue + lifecycle registry
-		$sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}cep_deals (
-			id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-			wp_post_id      BIGINT UNSIGNED NOT NULL DEFAULT 0,
-			deal_hash       CHAR(64) NOT NULL,
-			product_name    VARCHAR(500) NOT NULL,
-			product_url     VARCHAR(500) NOT NULL,
-			merchant_name   VARCHAR(255) NOT NULL DEFAULT '',
-			merchant_domain VARCHAR(255) NOT NULL DEFAULT '',
-			affiliate_url   VARCHAR(1000) NOT NULL DEFAULT '',
-			original_price  DECIMAL(10,2) DEFAULT NULL,
-			deal_price      DECIMAL(10,2) DEFAULT NULL,
-			discount_pct    TINYINT DEFAULT NULL,
-			currency        CHAR(3) NOT NULL DEFAULT 'USD',
-			coupon_code     VARCHAR(100) NOT NULL DEFAULT '',
-			deal_type       ENUM('price_drop','coupon','bundle','clearance','seasonal','flash') NOT NULL DEFAULT 'price_drop',
-			category        VARCHAR(100) NOT NULL DEFAULT 'general',
-			region          VARCHAR(10) NOT NULL DEFAULT 'US',
-			source_feed     VARCHAR(500) NOT NULL DEFAULT '',
-			source_type     ENUM('rss','api','scrape','manual') NOT NULL DEFAULT 'rss',
-			image_url       VARCHAR(500) NOT NULL DEFAULT '',
-			expires_at      DATETIME DEFAULT NULL,
-			is_active       TINYINT(1) NOT NULL DEFAULT 1,
-			quality_score   DECIMAL(5,2) NOT NULL DEFAULT 0.00,
-			status          ENUM('pending','generating','published','expired','failed','duplicate') NOT NULL DEFAULT 'pending',
-			price_history   LONGTEXT DEFAULT NULL,
-			discovered_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			published_at    DATETIME DEFAULT NULL,
-			last_checked_at DATETIME DEFAULT NULL,
-			PRIMARY KEY (id),
-			UNIQUE KEY idx_deal_hash (deal_hash),
-			KEY idx_wp_post   (wp_post_id),
-			KEY idx_status    (status),
-			KEY idx_expires   (expires_at),
-			KEY idx_cat_region (category, region)
-		) {$charset};";
-
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		foreach ( $sql as $query ) {
 			dbDelta( $query );
