@@ -821,8 +821,54 @@ PROMPT
 		if ( '' === $base ) {
 			return '';
 		}
-		$utm = 'utm_source=adityashah.blog&utm_medium=job_board&utm_campaign=jobs';
-		return strpos( $base, '?' ) !== false ? $base . '&' . $utm : $base . '?' . $utm;
+		return self::with_utm( $base, $id );
+	}
+
+	/**
+	 * Add outbound UTM parameters to a job link.
+	 *
+	 * Keeps the URL's existing query and #fragment, never overrides UTM values
+	 * the employer already set, and tags each listing with its slug so clicks
+	 * can be attributed per role. Filter `cep_job_utm_params` to change them.
+	 *
+	 * @param string $url Outbound URL.
+	 * @param int    $id  Job post ID (optional; adds utm_content).
+	 * @return string
+	 */
+	public static function with_utm( string $url, int $id = 0 ): string {
+		$url = trim( $url );
+		if ( '' === $url || ! wp_http_validate_url( $url ) ) {
+			return $url;
+		}
+
+		$params = [
+			'utm_source'   => 'adityashah.blog',
+			'utm_medium'   => 'job_board',
+			'utm_campaign' => 'jobs',
+		];
+		if ( $id ) {
+			$slug = (string) get_post_field( 'post_name', $id );
+			if ( '' !== $slug ) {
+				$params['utm_content'] = $slug;
+			}
+		}
+		$params = (array) apply_filters( 'cep_job_utm_params', $params, $url, $id );
+
+		$fragment = '';
+		$hash     = strpos( $url, '#' );
+		if ( false !== $hash ) {
+			$fragment = substr( $url, $hash );
+			$url      = substr( $url, 0, $hash );
+		}
+
+		$existing = [];
+		$query    = (string) wp_parse_url( $url, PHP_URL_QUERY );
+		if ( '' !== $query ) {
+			wp_parse_str( $query, $existing );
+		}
+		$missing = array_diff_key( array_filter( $params, 'strlen' ), $existing );
+
+		return ( $missing ? add_query_arg( array_map( 'rawurlencode', $missing ), $url ) : $url ) . $fragment;
 	}
 
 	/**

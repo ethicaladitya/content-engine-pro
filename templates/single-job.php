@@ -33,12 +33,13 @@ while ( have_posts() ) :
 	$type     = $meta['type'] ?: '';
 	$salary   = $meta['salary'] ?: '';
 
-	// Apply link: prefer the original listing URL.
-	$apply_url = $meta['url'] ?: '';
+	// Apply link: employer careers page or original listing, tagged with UTM.
+	$has_aggregator = class_exists( '\\ContentEnginePro\\Jobs\\JobAggregator' );
+	$apply_url      = $has_aggregator ? \ContentEnginePro\Jobs\JobAggregator::apply_url( $post_id ) : ( $meta['url'] ?: '' );
 	// Detect an "apply/remote" paragraph the autopilot may have injected into content.
 	if ( ! $apply_url ) {
 		if ( preg_match( '/<a\s+[^>]*href="([^"]+)"[^>]*>\s*(?:Apply|View|Read more)/i', get_the_content(), $m ) ) {
-			$apply_url = $m[1];
+			$apply_url = $has_aggregator ? \ContentEnginePro\Jobs\JobAggregator::with_utm( $m[1], $post_id ) : $m[1];
 		}
 	}
 
