@@ -211,7 +211,7 @@ class Settings {
 
 		// Lazy-load all options once
 		if ( null === self::$loaded ) {
-			self::$loaded = (array) get_option( 'cep_settings', [] );
+			self::$loaded = self::stored();
 		}
 
 		$defaults = self::defaults();
@@ -231,7 +231,7 @@ class Settings {
 	 * Get all settings (merged with defaults).
 	 */
 	public static function all(): array {
-		$stored   = (array) get_option( 'cep_settings', [] );
+		$stored   = self::stored();
 		$defaults = self::defaults();
 
 		return array_merge( $defaults, $stored );
@@ -248,9 +248,9 @@ class Settings {
 	 * Update a single setting value.
 	 */
 	public static function update( string $key, $value ): void {
-		$stored         = (array) get_option( 'cep_settings', [] );
+		$stored         = self::stored();
 		$stored[ $key ] = $value;
-		update_option( 'cep_settings', $stored );
+		update_option( 'cep_settings', self::clean( $stored ) );
 		self::clear_cache();
 	}
 
@@ -258,10 +258,57 @@ class Settings {
 	 * Save multiple settings at once.
 	 */
 	public static function save( array $data ): void {
-		$stored  = (array) get_option( 'cep_settings', [] );
+		$stored  = self::stored();
 		$updated = array_merge( $stored, $data );
-		update_option( 'cep_settings', $updated );
+		update_option( 'cep_settings', self::clean( $updated ) );
 		self::clear_cache();
+	}
+
+	/**
+	 * Read the stored settings array.
+	 *
+	 * If the serialized row is damaged (string byte lengths no longer match,
+	 * e.g. after the database stripped invalid UTF-8), get_option() returns
+	 * false and every setting silently falls back to its default. Recover the
+	 * values in memory instead; the next save rewrites a clean row.
+	 */
+	private static function stored(): array {
+		$stored = get_option( 'cep_settings', [] );
+		if ( is_array( $stored ) ) {
+			return $stored;
+		}
+
+		global $wpdb;
+		$raw = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$wpdb->options} WHERE option_name = %s", 'cep_settings' ) );
+		if ( ! is_string( $raw ) || '' === $raw || ! is_serialized( $raw ) ) {
+			return [];
+		}
+
+		$repaired = preg_replace_callback(
+			'/s:(\d+):"(.*?)";(?=s:|i:|b:|d:|a:|N;|\})/s',
+			static fn( $m ) => 's:' . strlen( $m[2] ) . ':"' . $m[2] . '";',
+			$raw
+		);
+		$data = is_string( $repaired ) ? @unserialize( $repaired, [ 'allowed_classes' => false ] ) : false; // phpcs:ignore WordPress.PHP.NoSilencedErrors, WordPress.PHP.DiscouragedPHPFunctions
+
+		return is_array( $data ) ? $data : [];
+	}
+
+	/**
+	 * Drop invalid UTF-8 bytes before saving, so the database cannot alter
+	 * string lengths inside the serialized row.
+	 *
+	 * @param mixed $value Setting value (scalar or nested array).
+	 * @return mixed
+	 */
+	private static function clean( $value ) {
+		if ( is_array( $value ) ) {
+			return array_map( [ self::class, 'clean' ], $value );
+		}
+		if ( is_string( $value ) && ! mb_check_encoding( $value, 'UTF-8' ) ) {
+			return (string) iconv( 'UTF-8', 'UTF-8//IGNORE', $value );
+		}
+		return $value;
 	}
 
 	/**
