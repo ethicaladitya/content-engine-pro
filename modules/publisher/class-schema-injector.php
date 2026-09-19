@@ -109,14 +109,9 @@ class SchemaInjector {
 			return;
 		}
 
-		$schema = $this->build_review_schema( $post );
-		$schema = apply_filters( 'cep_schema_data', $schema, $post_id, $post_type );
-
-		if ( empty( $schema ) ) {
-			return;
-		}
-
-		echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . '</script>' . "\n";
+		// Regular posts and pages are handled by the active SEO plugin. Do not
+		// fall through to Review schema, which is reserved for the Review CPT.
+		return;
 	}
 
 	// -------------------------------------------------------------------
