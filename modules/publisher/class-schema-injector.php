@@ -219,7 +219,10 @@ class SchemaInjector {
             $desc    = wp_kses_post( $post->post_content );
             $desc    = wp_trim_words( wp_strip_all_tags( $desc ), 400 );
 
-            $remote  = (bool) preg_match( '/\bremote\b/i', $loc . ' ' . ($type ?: '') . ' ' . get_the_title( $id ) );
+            // A listing with no location at all is treated as remote: this is a
+            // remote-jobs board, and Google needs either a jobLocation with an
+            // address or TELECOMMUTE + applicantLocationRequirements.
+            $remote  = '' === trim( $loc ) || (bool) preg_match( '/\bremote\b/i', $loc . ' ' . ($type ?: '') . ' ' . get_the_title( $id ) );
             $country = $this->derive_country( $loc );
 
             $hiring = [
@@ -240,21 +243,26 @@ class SchemaInjector {
                 'validThrough'    => $this->job_valid_through( $post, $id ),
                 'employmentType'  => $this->map_employment_type( $type ),
                 'hiringOrganization' => $hiring,
-                'jobLocation'     => $this->build_job_location( $loc, $country ),
                 'directApply'     => $apply ? [ '@type' => 'URL', 'url' => esc_url( $apply ) ] : false,
             ];
 
-            if ( $remote ) {
-                $schema['jobLocationType'] = 'TELECOMMUTE';
-                if ( $country ) {
-                    $schema['applicantLocationRequirements'] = [
-                        '@type' => 'Country',
-                        'name'  => $country,
-                    ];
-                }
+            // Google rejects a jobLocation without an address, so only emit it
+            // when one can be built; remote roles fall back to TELECOMMUTE.
+            $address = $this->build_address( $loc, $country, $remote );
+            if ( $address ) {
+                $schema['jobLocation'] = [
+                    '@type'   => 'Place',
+                    'address' => $address,
+                ];
             }
-            if ( $salary ) {
-                $schema['baseSalary'] = $this->build_salary( $salary );
+
+            if ( $remote || ! $address ) {
+                $schema['jobLocationType'] = 'TELECOMMUTE';
+                $schema['applicantLocationRequirements'] = $this->build_applicant_location( $loc, $country );
+            }
+            $base_salary = $this->build_salary( $salary, $country );
+            if ( $base_salary ) {
+                $schema['baseSalary'] = $base_salary;
             }
             return $schema;
         }
@@ -275,45 +283,139 @@ class SchemaInjector {
         }
 
         /**
-         * Build the jobLocation node. For remote/unknown-location jobs with no
-         * meaningful country we omit the (otherwise malformed, empty) address
-         * object and rely on TELECOMMUTE + applicantLocationRequirements, which
-         * Google's JobPosting spec accepts for remote roles.
+         * Where applicants of a remote role may live. Google needs this (or a
+         * jobLocation) on every TELECOMMUTE posting: use the ISO country when
+         * known, a named region (Europe, APAC, ...) when given, else
+         * "Worldwide" since the listing states no restriction.
          */
-        private function build_job_location( string $loc, string $country ): array {
-            $node = [ '@type' => 'Place' ];
-            $addr = $this->build_address( $loc, $country );
-            if ( $addr ) {
-                $node['address'] = $addr;
+        private function build_applicant_location( string $loc, string $country ): array {
+            if ( $country ) {
+                $node = [ '@type' => 'Country', 'name' => $country ];
+            } elseif ( preg_match( '/\b(EMEA|APAC|LATAM|EU|Europe|Asia|Americas|North America|South America|Africa|Middle East)\b/i', $loc, $m ) ) {
+                $node = [ '@type' => 'AdministrativeArea', 'name' => $m[1] ];
+            } else {
+                $node = [ '@type' => 'AdministrativeArea', 'name' => 'Worldwide' ];
             }
-            return $node;
+            return apply_filters( 'cep_job_applicant_location', $node, $loc, $country );
         }
 
-        private function build_address( string $loc, string $country ): array {
-            // No locatable country → no postal address (remote / unspecified).
-            if ( '' === $country ) {
+        /**
+         * Build the PostalAddress for jobLocation, or [] when there is none.
+         *
+         * Remote roles only get an address when the country is known (it then
+         * doubles as applicantLocationRequirements). On-site roles with an
+         * unrecognised country still get the raw location as addressLocality,
+         * because Google requires an address on every jobLocation.
+         */
+        private function build_address( string $loc, string $country, bool $remote ): array {
+            $parts = array_values( array_filter(
+                preg_split( '/\s*[,\/|]\s*/', trim( $loc ) ),
+                static fn( $p ) => '' !== $p && ! preg_match( '/^(remote|anywhere|worldwide|hybrid)$/i', $p )
+            ) );
+            $city  = $parts[0] ?? '';
+            // Drop a "city" that is only the country name itself ("India").
+            if ( '' !== $city && $country && $this->derive_country( $city ) === $country && count( $parts ) === 1 ) {
+                $city = '';
+            }
+
+            if ( '' === $country && ( $remote || '' === $city ) ) {
                 return [];
             }
-            $parts = preg_split( '/\s*,\s*/', trim( $loc ) );
-            $city  = $parts[0] ?? '';
+
+            $address = [ '@type' => 'PostalAddress' ];
+            if ( '' !== $city ) {
+                $address['addressLocality'] = $city;
+            }
+            if ( '' !== $country ) {
+                $address['addressCountry'] = $country;
+            }
+            return $address;
+        }
+
+        /**
+         * Parse a free-text salary ("$120k - $150k", "₹18,00,000 / yr",
+         * "€45/hour") into a MonetaryAmount. Returns [] when no amount can be
+         * read, so we never publish a zero or garbled salary.
+         */
+        private function build_salary( string $salary, string $country = '' ): array {
+            $salary = trim( $salary );
+            if ( '' === $salary ) {
+                return [];
+            }
+
+            preg_match_all( '/(\d[\d,]*(?:\.\d+)?)\s*([km])?\b/i', $salary, $m, PREG_SET_ORDER );
+            $values = [];
+            foreach ( $m as $match ) {
+                $num = (float) str_replace( ',', '', $match[1] );
+                $mul = strtolower( $match[2] ?? '' );
+                if ( 'k' === $mul ) {
+                    $num *= 1000;
+                } elseif ( 'm' === $mul ) {
+                    $num *= 1000000;
+                }
+                if ( $num > 0 ) {
+                    $values[] = $num;
+                }
+            }
+            if ( ! $values ) {
+                return [];
+            }
+            $values = array_slice( $values, 0, 2 );
+
+            // Indian shorthand: "18-25 LPA" / "18 lakh" / "1.2 crore".
+            $scale = 1;
+            if ( preg_match( '/\bcrores?\b|\bcr\b/i', $salary ) ) {
+                $scale = 10000000;
+            } elseif ( preg_match( '/\b(lpa|lakhs?|lacs?)\b/i', $salary ) ) {
+                $scale = 100000;
+            }
+            if ( $scale > 1 ) {
+                $values = array_map( static fn( $v ) => $v < 1000 ? $v * $scale : $v, $values );
+            }
+
+            $currency = $this->detect_currency( $salary, $country );
+
+            $unit = 'YEAR';
+            if ( preg_match( '/\b(hour|hr|hourly)\b|\/\s*h\b/i', $salary ) ) {
+                $unit = 'HOUR';
+            } elseif ( preg_match( '/\b(day|daily)\b/i', $salary ) ) {
+                $unit = 'DAY';
+            } elseif ( preg_match( '/\b(week|weekly|wk)\b/i', $salary ) ) {
+                $unit = 'WEEK';
+            } elseif ( preg_match( '/\b(month|monthly|mo)\b/i', $salary ) ) {
+                $unit = 'MONTH';
+            }
+
+            $value = [ '@type' => 'QuantitativeValue', 'unitText' => $unit ];
+            if ( count( $values ) === 2 && $values[0] !== $values[1] ) {
+                $value['minValue'] = min( $values );
+                $value['maxValue'] = max( $values );
+            } else {
+                $value['value'] = $values[0];
+            }
+
             return [
-                '@type'           => 'PostalAddress',
-                'addressLocality' => $city,
-                'addressCountry'  => $country,
+                '@type'    => 'MonetaryAmount',
+                'currency' => $currency,
+                'value'    => $value,
             ];
         }
 
-        private function build_salary( string $salary ): array {
-            $num = preg_replace( '/[^0-9.]/', '', $salary );
-            return [
-                '@type'    => 'MonetaryAmount',
-                'currency' => 'USD',
-                'value'    => [
-                    '@type'    => 'QuantitativeValue',
-                    'value'    => $num ? (float) $num : 0,
-                    'unitText' => 'YEAR',
-                ],
-            ];
+        private function detect_currency( string $salary, string $country ): string {
+            if ( preg_match( '/\b(USD|EUR|GBP|INR|CAD|AUD)\b/i', $salary, $m ) ) {
+                return strtoupper( $m[1] );
+            }
+            $symbols = [ '£' => 'GBP', '€' => 'EUR', '₹' => 'INR', 'C$' => 'CAD', 'CA$' => 'CAD', 'A$' => 'AUD', 'AU$' => 'AUD' ];
+            foreach ( $symbols as $sym => $code ) {
+                if ( false !== strpos( $salary, $sym ) ) {
+                    return $code;
+                }
+            }
+            if ( preg_match( '/\b(lpa|lakh|lakhs|crore)\b/i', $salary ) ) {
+                return 'INR';
+            }
+            $by_country = [ 'GB' => 'GBP', 'IN' => 'INR', 'CA' => 'CAD', 'AU' => 'AUD', 'DE' => 'EUR' ];
+            return $by_country[ $country ] ?? 'USD';
         }
 
         private function map_employment_type( string $type ): array {
@@ -333,18 +435,22 @@ class SchemaInjector {
             return [ 'FULL_TIME' ];
         }
 
+        /**
+         * Map a free-text location onto an ISO 3166-1 alpha-2 country code.
+         * Region names (EU, APAC) are not countries, so they return ''.
+         */
         private function derive_country( string $loc ): string {
             $map = [
-                'usa' => 'US', 'united states' => 'US', 'us ' => 'US', 'u.s.' => 'US',
-                'uk' => 'GB', 'united kingdom' => 'GB', 'england' => 'GB',
-                'india' => 'IN', 'remote, india' => 'IN',
-                'canada' => 'CA', 'germany' => 'DE', 'eu' => 'EU', 'europe' => 'EU',
-                'australia' => 'AU', 'apac' => 'APAC',
+                'united states' => 'US', 'usa' => 'US', 'u\.s\.a?\.?' => 'US', 'us' => 'US',
+                'united kingdom' => 'GB', 'uk' => 'GB', 'england' => 'GB', 'scotland' => 'GB',
+                'india' => 'IN', 'canada' => 'CA', 'germany' => 'DE', 'australia' => 'AU',
             ];
-            $l = strtolower( $loc );
-            foreach ( $map as $k => $v ) {
-                if ( strpos( $l, $k ) !== false ) {
-                    return $v;
+            foreach ( $map as $pattern => $code ) {
+                // US/UK must be uppercase to avoid matching the English word "us".
+                $flags = in_array( $pattern, [ 'us', 'uk' ], true ) ? '' : 'i';
+                $re    = in_array( $pattern, [ 'us', 'uk' ], true ) ? strtoupper( $pattern ) : $pattern;
+                if ( preg_match( '/(?<![\p{L}])' . $re . '(?![\p{L}])/u' . $flags, $loc ) ) {
+                    return $code;
                 }
             }
             return '';
