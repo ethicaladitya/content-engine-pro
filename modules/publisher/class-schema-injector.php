@@ -286,7 +286,8 @@ class SchemaInjector {
          * Where applicants of a remote role may live. Google needs this (or a
          * jobLocation) on every TELECOMMUTE posting: use the ISO country when
          * known, a named region (Europe, APAC, ...) when given, else
-         * "Worldwide" since the listing states no restriction.
+         * "Remote" (e.g. "Remote", "Worldwide", "Anywhere") since the
+         * listing states no restriction.
          */
         private function build_applicant_location( string $loc, string $country ): array {
             if ( $country ) {
@@ -294,7 +295,7 @@ class SchemaInjector {
             } elseif ( preg_match( '/\b(EMEA|APAC|LATAM|EU|Europe|Asia|Americas|North America|South America|Africa|Middle East)\b/i', $loc, $m ) ) {
                 $node = [ '@type' => 'AdministrativeArea', 'name' => $m[1] ];
             } else {
-                $node = [ '@type' => 'AdministrativeArea', 'name' => 'Worldwide' ];
+                $node = [ '@type' => 'AdministrativeArea', 'name' => 'Remote' ];
             }
             return apply_filters( 'cep_job_applicant_location', $node, $loc, $country );
         }
