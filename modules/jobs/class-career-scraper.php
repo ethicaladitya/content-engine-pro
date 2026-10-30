@@ -173,6 +173,8 @@ class CareerScraper {
 
 		// Explicit job-body containers, in priority order.
 		$candidates = [
+			// Breakdance sites (wpremotework.com): the first rich-text block is the job body.
+			'//*[contains(@class,"breakdance-rich-text-styles")]',
 			'//*[contains(@class,"entry-content") or contains(@class,"post-content")]',
 			'//*[contains(@class,"job_description") or contains(@class,"job-description") or contains(@class,"jobDescription")]',
 			'//*[contains(@class,"description") and not(contains(@class,"meta")) and not(contains(@class,"short"))]',
@@ -226,7 +228,12 @@ class CareerScraper {
 		foreach ( $links as $node ) {
 			/** @var \DOMElement $node */
 			$href = trim( (string) $node->getAttribute( 'href' ) );
-			$text = trim( wp_strip_all_tags( $node->textContent ) );
+			// Card links (rtCamp) wrap title, location and team in separate elements and
+			// textContent glues them ("SEO ExecutiveRemoteMarketing"): the title is the first
+			// heading/paragraph; role detection still reads the whole card.
+			$full = trim( wp_strip_all_tags( $node->textContent ) );
+			$part = $xpath->query( './/h2|.//h3|.//h4|.//p', $node );
+			$text = $part && $part->length ? trim( wp_strip_all_tags( $part->item( 0 )->textContent ) ) : $full;
 			if ( empty( $href ) || empty( $text ) ) {
 				continue;
 			}
@@ -241,7 +248,7 @@ class CareerScraper {
 				continue;
 			}
 			$url_joblike  = (bool) preg_match( '#/(job|career|role|position|opening|vacanc|empleo|jobs?|careers?)/#i', $abs );
-			$text_joblike = self::looks_like_role( $text );
+			$text_joblike = self::looks_like_role( $full );
 			if ( ! ( $url_joblike && $text_joblike ) ) {
 				continue;
 			}

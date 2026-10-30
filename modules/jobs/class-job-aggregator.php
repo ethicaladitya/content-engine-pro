@@ -198,6 +198,7 @@ class JobAggregator {
 				$company = self::source_label( $feed_url );
 			}
 			$location = self::extract_location( $title, $desc, $item );
+			$title    = self::strip_company_prefix( $title, $company );
 
 			$items[] = [
 				'title'       => sanitize_text_field( $title ),
@@ -230,6 +231,7 @@ class JobAggregator {
 				$desc    = self::clean_description( (string) $entry->summary );
 				$company = self::extract_company( $title, $desc, $entry );
 				$location = self::extract_location( $title, $desc, $entry );
+				$title    = self::strip_company_prefix( $title, $company );
 
 				$items[] = [
 					'title'       => sanitize_text_field( $title ),
@@ -333,6 +335,11 @@ class JobAggregator {
 			}
 
 			$new[] = $listing;
+			// Same role fed twice in one run (two feeds, or a feed and a careers page).
+			$known_urls[] = $url;
+			if ( '' !== $listing_company ) {
+				$known_titles[] = [ 'company' => $listing_company, 'title' => $listing_title ];
+			}
 		}
 
 		return $new;
@@ -554,8 +561,10 @@ PROMPT
 		update_post_meta( $post_id, '_cep_job_type', sanitize_text_field( $formatted['job_type'] ?? '' ) );
 		update_post_meta( $post_id, '_cep_job_salary', sanitize_text_field( $formatted['salary'] ?? '' ) );
 		update_post_meta( $post_id, '_cep_job_url', esc_url_raw( $listing['url'] ) );
-		// Flag scraped (HTML) jobs so the enrich cron can fetch real descriptions.
-		if ( empty( $formatted['content'] ) || '' === trim( wp_strip_all_tags( $formatted['content'] ) ) ) {
+		// Flag thin jobs (careers-page links, feeds that only carry a teaser) so the enrich
+		// cron fetches the full description. Content always holds the apply link, so test
+		// the source description, not the content.
+		if ( mb_strlen( trim( (string) $listing['description'] ) ) < 300 ) {
 			update_post_meta( $post_id, '_cep_needs_enrich', 1 );
 		}
 		update_post_meta( $post_id, '_cep_job_source', esc_url_raw( $listing['source_url'] ) );
@@ -605,7 +614,19 @@ PROMPT
 		$text = (string) preg_replace( "/\n{3,}/u", "\n\n", $text );
 		$text = (string) preg_replace( "/[ \t]+\n/u", "\n", $text );
 
-		return self::safe_truncate( $text, 1000 );
+		return self::safe_truncate( $text, 8000 );
+	}
+
+	/**
+	 * "Salesloft: HR Enablement Lead" -> "HR Enablement Lead" when Salesloft is the company.
+	 */
+	public static function strip_company_prefix( string $title, string $company ): string {
+		$company = trim( $company );
+		if ( '' !== $company && 0 === stripos( $title, $company . ':' ) ) {
+			$rest = trim( substr( $title, strlen( $company ) + 1 ) );
+			return '' !== $rest ? $rest : $title;
+		}
+		return $title;
 	}
 
 	/**
@@ -700,7 +721,10 @@ PROMPT
 			$details = \ContentEnginePro\Jobs\CareerScraper::fetch_details( $detail );
 			$desc  = $details['description'] ?? '';
 			$title = $details['title'] ?? '';
-			if ( '' !== $desc && strlen( trim( wp_strip_all_tags( $desc ) ) ) > 40 ) {
+			// Only ever replace with something longer: a bot-check or landing page (WWR serves
+			// one once it rate-limits) must not overwrite the listing.
+			$old_len = mb_strlen( trim( wp_strip_all_tags( (string) get_post_field( 'post_content', $post_id ) ) ) );
+			if ( '' !== $desc && mb_strlen( trim( wp_strip_all_tags( $desc ) ) ) > max( 300, $old_len ) ) {
 				// Build a clean excerpt for SEO (meta description + OG) — SmartCrawl
 				// uses %%excerpt%%, which is empty unless we set it here.
 				$excerpt = self::make_excerpt( $desc, $title, $listing_company );
@@ -743,7 +767,8 @@ PROMPT
 	public static function build_job_slug( string $company, string $title ): string {
 		$role = sanitize_title( $title );
 		$co   = sanitize_title( $company );
-		$base = $co ? $co . '-' . $role : $role;
+		// Titles that already start with the company ("Salesloft: ...") must not repeat it.
+		$base = $co && 0 !== strpos( $role, $co . '-' ) ? $co . '-' . $role : $role;
 		if ( '' === $base ) {
 			$base = 'job-' . uniqid();
 		}
@@ -1016,7 +1041,7 @@ PROMPT
 		if ( '' !== $listing['url'] ) {
 			$details = \ContentEnginePro\Jobs\CareerScraper::fetch_details( $listing['url'] );
 			$full    = trim( (string) ( $details['description'] ?? '' ) );
-			if ( strlen( trim( (string) wp_strip_all_tags( $full ) ) ) > 40 ) {
+			if ( mb_strlen( trim( (string) wp_strip_all_tags( $full ) ) ) > max( 300, mb_strlen( $listing['description'] ) ) ) {
 				$listing['description'] = self::clean_description( $full );
 			}
 		}
